@@ -36,6 +36,7 @@ from .const import (
     STATUS_HIGH,
     STATUS_LOW,
     STATUS_NO_DATA,
+    STATUS_NORMAL,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
 from .store import GlucoFarmerStore
@@ -119,9 +120,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
 
     # Set up daily email report (once, at midnight)
     if "daily_report_unsub" not in hass.data[DOMAIN]:
+        async def _daily_report_callback(_now: Any) -> None:
+            await _send_daily_report(hass)
+
         unsub_daily = async_track_time_interval(
             hass,
-            lambda now: hass.async_create_task(_send_daily_report(hass)),
+            _daily_report_callback,
             timedelta(minutes=1),
         )
         hass.data[DOMAIN]["daily_report_unsub"] = unsub_daily
@@ -313,10 +317,14 @@ async def _send_notification(
 ) -> None:
     """Send a notification via persistent notification and notify service."""
     # Always create a persistent notification
-    hass.components.persistent_notification.async_create(
-        message=message,
-        title=title,
-        notification_id=f"glucofarmer_{title[:30].replace(' ', '_').lower()}",
+    await hass.services.async_call(
+        "persistent_notification",
+        "create",
+        {
+            "message": message,
+            "title": title,
+            "notification_id": f"glucofarmer_{title[:30].replace(' ', '_').lower()}",
+        },
     )
 
     # Try to send via notify service if available
@@ -422,8 +430,12 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         _LOGGER.debug("Could not send daily report via notify service")
 
     # Also create persistent notification
-    hass.components.persistent_notification.async_create(
-        message=report_text,
-        title="GlucoFarmer daily report",
-        notification_id="glucofarmer_daily_report",
+    await hass.services.async_call(
+        "persistent_notification",
+        "create",
+        {
+            "message": report_text,
+            "title": "GlucoFarmer daily report",
+            "notification_id": "glucofarmer_daily_report",
+        },
     )
