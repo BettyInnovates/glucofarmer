@@ -1,0 +1,162 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This pig is already configured."
+    },
+    "step": {
+      "user": {
+        "title": "Set up pig profile",
+        "description": "Configure a new pig for glucose monitoring.",
+        "data": {
+          "pig_name": "Pig name",
+          "glucose_sensor": "Dexcom glucose sensor",
+          "trend_sensor": "Dexcom trend sensor"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "GlucoFarmer settings",
+        "description": "Manage insulin products, feeding categories, and presets.",
+        "menu_options": {
+          "manage_insulin_products": "Manage insulin products",
+          "manage_feeding_categories": "Manage feeding categories",
+          "manage_presets": "Manage presets"
+        }
+      },
+      "manage_insulin_products": {
+        "title": "Insulin products",
+        "menu_options": {
+          "add_insulin_product": "Add insulin product",
+          "remove_insulin_product": "Remove insulin product"
+        }
+      },
+      "add_insulin_product": {
+        "title": "Add insulin product",
+        "data": {
+          "name": "Product name",
+          "category": "Category"
+        }
+      },
+      "remove_insulin_product": {
+        "title": "Remove insulin product",
+        "data": {
+          "product": "Product to remove"
+        }
+      },
+      "manage_feeding_categories": {
+        "title": "Feeding categories",
+        "menu_options": {
+          "add_feeding_category": "Add feeding category",
+          "remove_feeding_category": "Remove feeding category"
+        }
+      },
+      "add_feeding_category": {
+        "title": "Add feeding category",
+        "data": {
+          "category": "Category name"
+        }
+      },
+      "remove_feeding_category": {
+        "title": "Remove feeding category",
+        "data": {
+          "category": "Category to remove"
+        }
+      },
+      "manage_presets": {
+        "title": "Presets",
+        "menu_options": {
+          "add_preset": "Add preset",
+          "remove_preset": "Remove preset"
+        }
+      },
+      "add_preset": {
+        "title": "Add preset",
+        "data": {
+          "name": "Preset name",
+          "type": "Type",
+          "product": "Insulin product (for insulin presets)",
+          "feeding_category": "Feeding category (for feeding presets)",
+          "amount": "Amount (IU or BE)"
+        }
+      },
+      "remove_preset": {
+        "title": "Remove preset",
+        "data": {
+          "preset": "Preset to remove"
+        }
+      }
+    },
+    "abort": {
+      "no_products": "No insulin products to remove.",
+      "no_categories": "No feeding categories to remove.",
+      "no_presets": "No presets to remove."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "glucose_value": {
+        "name": "Glucose value"
+      },
+      "glucose_trend": {
+        "name": "Glucose trend",
+        "state": {
+          "rising_quickly": "Rising quickly",
+          "rising": "Rising",
+          "rising_slightly": "Rising slightly",
+          "steady": "Steady",
+          "falling_slightly": "Falling slightly",
+          "falling": "Falling",
+          "falling_quickly": "Falling quickly"
+        }
+      },
+      "glucose_status": {
+        "name": "Glucose status",
+        "state": {
+          "normal": "Normal",
+          "low": "Low",
+          "high": "High",
+          "critical_low": "Critical low",
+          "no_data": "No data"
+        }
+      },
+      "reading_age": {
+        "name": "Reading age"
+      },
+      "time_in_range_today": {
+        "name": "Time in range today"
+      },
+      "time_below_range_today": {
+        "name": "Time below range today"
+      },
+      "time_above_range_today": {
+        "name": "Time above range today"
+      },
+      "data_completeness_today": {
+        "name": "Data completeness today"
+      },
+      "daily_insulin_total": {
+        "name": "Daily insulin total"
+      },
+      "daily_bes_total": {
+        "name": "Daily BE total"
+      }
+    },
+    "number": {
+      "low_threshold": {
+        "name": "Low glucose threshold"
+      },
+      "high_threshold": {
+        "name": "High glucose threshold"
+      },
+      "critical_low_threshold": {
+        "name": "Critical low glucose threshold"
+      },
+      "data_timeout": {
+        "name": "Data timeout"
+      }
+    }
+  }
+}

@@ -1,0 +1,80 @@
+"""Constants for the GlucoFarmer integration."""
+
+from homeassistant.const import Platform
+
+DOMAIN = "glucofarmer"
+PLATFORMS = [Platform.SENSOR, Platform.NUMBER, Platform.BUTTON]
+
+# Config keys
+CONF_PIG_NAME = "pig_name"
+CONF_GLUCOSE_SENSOR = "glucose_sensor"
+CONF_TREND_SENSOR = "trend_sensor"
+
+# Options keys
+CONF_INSULIN_PRODUCTS = "insulin_products"
+CONF_FEEDING_CATEGORIES = "feeding_categories"
+CONF_PRESETS = "presets"
+
+# Default thresholds (mg/dL)
+DEFAULT_LOW_THRESHOLD = 70
+DEFAULT_HIGH_THRESHOLD = 180
+DEFAULT_CRITICAL_LOW_THRESHOLD = 55
+DEFAULT_DATA_TIMEOUT = 20  # minutes
+
+# Glucose status values
+STATUS_NORMAL = "normal"
+STATUS_LOW = "low"
+STATUS_HIGH = "high"
+STATUS_CRITICAL_LOW = "critical_low"
+STATUS_NO_DATA = "no_data"
+
+# Default insulin products
+DEFAULT_INSULIN_PRODUCTS: list[dict[str, str]] = [
+    {"name": "NovoRapid", "category": "short"},
+    {"name": "Lantus", "category": "long"},
+    {"name": "StudyDrug-X", "category": "experimental"},
+]
+
+# Default feeding categories
+DEFAULT_FEEDING_CATEGORIES: list[str] = [
+    "breakfast",
+    "dinner",
+    "reward",
+    "emergency_single",
+    "emergency_double",
+    "intervention",
+    "other",
+]
+
+# Insulin categories
+INSULIN_CATEGORY_SHORT = "short"
+INSULIN_CATEGORY_LONG = "long"
+INSULIN_CATEGORY_EXPERIMENTAL = "experimental"
+
+# Event types
+EVENT_TYPE_INSULIN = "insulin"
+EVENT_TYPE_FEEDING = "feeding"
+
+# Preset types
+PRESET_TYPE_INSULIN = "insulin"
+PRESET_TYPE_FEEDING = "feeding"
+
+# Storage
+STORAGE_VERSION = 1
+STORAGE_KEY = f"{DOMAIN}_events"
+
+# Services
+SERVICE_LOG_INSULIN = "log_insulin"
+SERVICE_LOG_FEEDING = "log_feeding"
+SERVICE_DELETE_EVENT = "delete_event"
+
+# Attributes
+ATTR_PIG_NAME = "pig_name"
+ATTR_PRODUCT = "product"
+ATTR_AMOUNT = "amount"
+ATTR_TIMESTAMP = "timestamp"
+ATTR_NOTE = "note"
+ATTR_CATEGORY = "category"
+ATTR_DESCRIPTION = "description"
+ATTR_EVENT_ID = "event_id"
+ATTR_PRESET_NAME = "preset_name"

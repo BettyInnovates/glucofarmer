@@ -1,0 +1,104 @@
+log_insulin:
+  name: Log insulin
+  description: Log an insulin administration event for a pig.
+  fields:
+    pig_name:
+      name: Pig name
+      description: Name of the pig (e.g. "Piggy-01").
+      required: true
+      example: "Piggy-01"
+      selector:
+        text:
+    product:
+      name: Product
+      description: Insulin product name (e.g. "NovoRapid").
+      required: true
+      example: "NovoRapid"
+      selector:
+        text:
+    amount:
+      name: Amount (IU)
+      description: Amount of insulin in international units.
+      required: true
+      example: 4.0
+      selector:
+        number:
+          min: 0.1
+          max: 100
+          step: 0.1
+          unit_of_measurement: IU
+    timestamp:
+      name: Timestamp
+      description: ISO timestamp for the event. Defaults to now if not provided.
+      required: false
+      example: "2025-01-15T08:30:00"
+      selector:
+        text:
+    note:
+      name: Note
+      description: Optional note for the event.
+      required: false
+      selector:
+        text:
+
+log_feeding:
+  name: Log feeding
+  description: Log a feeding event for a pig.
+  fields:
+    pig_name:
+      name: Pig name
+      description: Name of the pig.
+      required: true
+      example: "Piggy-01"
+      selector:
+        text:
+    amount:
+      name: Amount (BE)
+      description: Amount in bread units (Broteinheiten).
+      required: true
+      example: 3.0
+      selector:
+        number:
+          min: 0.1
+          max: 50
+          step: 0.1
+          unit_of_measurement: BE
+    category:
+      name: Category
+      description: Feeding category.
+      required: true
+      example: "breakfast"
+      selector:
+        select:
+          options:
+            - breakfast
+            - dinner
+            - reward
+            - emergency_single
+            - emergency_double
+            - intervention
+            - other
+    description:
+      name: Description
+      description: Optional description (e.g. "distraction during injection").
+      required: false
+      selector:
+        text:
+    timestamp:
+      name: Timestamp
+      description: ISO timestamp for the event. Defaults to now if not provided.
+      required: false
+      example: "2025-01-15T12:00:00"
+      selector:
+        text:
+
+delete_event:
+  name: Delete event
+  description: Delete a previously logged event by its ID.
+  fields:
+    event_id:
+      name: Event ID
+      description: The UUID of the event to delete.
+      required: true
+      selector:
+        text:

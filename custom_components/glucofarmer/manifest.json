@@ -1,0 +1,9 @@
+{
+  "domain": "glucofarmer",
+  "name": "GlucoFarmer",
+  "documentation": "https://github.com/glucofarmer/ha-glucofarmer",
+  "version": "1.0.0",
+  "config_flow": true,
+  "iot_class": "local_polling",
+  "integration_type": "service"
+}
