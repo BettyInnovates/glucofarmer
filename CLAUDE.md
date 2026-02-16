@@ -124,10 +124,43 @@ cp -r custom_components/glucofarmer /config/custom_components/
 3. Inhalt von `dashboard.yaml` einfuegen
 4. Entity-IDs anpassen (`piggy_01` durch tatsaechlichen Schweinenamen ersetzen)
 
+## Deployment
+
+- GitHub-Repo ist eingerichtet, HACS Custom Repository ist konfiguriert
+- Workflow: Lokal aendern > git commit > git push > HACS Redownload > HA neu starten
+- Projekt lebt unter `/home/mub/projects/glucofarmer/`
+- NICHT in ha-core arbeiten (dort liegt eine veraltete Kopie unter custom_components/)
+
+## Changelog
+
+### v1.0.2 (16.02.2026)
+Bugfixes TIR/Completeness und Benachrichtigungen:
+- **Fix: TIR-Berechnung zaehlte jeden 60s-Poll statt echte Dexcom-Readings** --
+  `_track_reading` in `coordinator.py` prueft jetzt `last_changed` des Sensors und
+  zaehlt nur neue Dexcom-Werte (alle ~5 Min). Neues Feld `_last_tracked_sensor_changed`.
+- **Fix: Datenvollstaendigkeit war immer ~100%** -- Gleiche Ursache, durch Deduplizierung
+  jetzt korrekt (echte Readings / erwartete Readings).
+- **Fix: "None minutes" in Datenausfall-Benachrichtigung** -- `_check_alarms` in
+  `__init__.py` behandelt `reading_age_minutes=None` jetzt mit Fallback-Text.
+- **Fix: Taeglicher Report ueberschrieb sich** -- `notification_id` enthaelt jetzt
+  das Datum, alte Reports bleiben erhalten.
+
+### v1.0.1 (14.02.2026)
+Bugfixes nach erstem Live-Test:
+- **Fix: `STATUS_NORMAL` Import fehlte** in `__init__.py` -- Alarm-Listener crashte
+  bei jedem Coordinator-Update, blockierte Wert-Aktualisierung
+- **Fix: `hass.components` API entfernt** -- `persistent_notification.async_create()`
+  umgestellt auf `hass.services.async_call()` (2 Stellen: `_send_notification` +
+  `_send_daily_report`)
+- **Fix: Thread-Safety bei Timer-Callback** -- Lambda mit `hass.async_create_task`
+  ersetzt durch async Callback-Funktion `_daily_report_callback`
+
+### v1.0.0 (14.02.2026)
+Initiale Implementation aller 11 Schritte.
+
 ## Bekannte Einschraenkungen / TODOs
 
 - TIR-Berechnung basiert auf In-Memory-Tracking (geht bei HA-Neustart verloren)
 - Dashboard muss manuell importiert und Entity-IDs angepasst werden
-- Kein HACS-Manifest vorhanden (bei Bedarf ergaenzen)
 - Keine automatischen Tests vorhanden
 - E-Mail-Report nutzt generischen `notify.notify` Service

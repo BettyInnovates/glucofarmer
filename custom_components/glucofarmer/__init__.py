@@ -278,14 +278,13 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
             )
             state["high_notified"] = True
     elif status == STATUS_NO_DATA and not state["no_data_notified"]:
+        age = coordinator.data.reading_age_minutes
+        age_text = f"{age} minutes" if age is not None else "an unknown duration"
         hass.async_create_task(
             _send_notification(
                 hass,
                 title=f"Data gap: {pig_name}",
-                message=(
-                    f"No glucose reading from {pig_name} for "
-                    f"{coordinator.data.reading_age_minutes} minutes"
-                ),
+                message=f"No glucose reading from {pig_name} for {age_text}",
                 priority="default",
             )
         )
@@ -429,13 +428,14 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
     except Exception:
         _LOGGER.debug("Could not send daily report via notify service")
 
-    # Also create persistent notification
+    # Also create persistent notification (unique per day so old reports are preserved)
+    report_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     await hass.services.async_call(
         "persistent_notification",
         "create",
         {
             "message": report_text,
-            "title": "GlucoFarmer daily report",
-            "notification_id": "glucofarmer_daily_report",
+            "title": f"GlucoFarmer daily report - {report_date}",
+            "notification_id": f"glucofarmer_daily_report_{report_date}",
         },
     )
