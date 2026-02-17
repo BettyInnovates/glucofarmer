@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from homeassistant.components.lovelace import dashboard as lovelace_dashboard
+from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -473,42 +475,40 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
         ],
     }
 
-    # Access lovelace component
-    lovelace_data = hass.data.get("lovelace")
+    # Access lovelace component data
+    lovelace_data = hass.data.get(LOVELACE_DATA)
     if not lovelace_data:
         _LOGGER.debug("Lovelace not available, skipping dashboard update")
         return
 
-    dashboards = lovelace_data.get("dashboards", {})
-    collection = lovelace_data.get("dashboards_collection")
+    dashboards = lovelace_data.dashboards
 
     # Create dashboard if it doesn't exist yet
     if "glucofarmer" not in dashboards:
-        if collection is None:
-            _LOGGER.warning("Cannot create dashboard: lovelace collection unavailable")
-            return
+        dashboards_collection = lovelace_dashboard.DashboardsCollection(hass)
+        await dashboards_collection.async_load()
         try:
-            await collection.async_create_item({
+            await dashboards_collection.async_create_item({
                 "url_path": "glucofarmer",
+                "allow_single_word": True,
                 "title": "GlucoFarmer",
                 "icon": "mdi:diabetes",
                 "show_in_sidebar": True,
                 "require_admin": False,
-                "mode": "storage",
             })
         except Exception:
             _LOGGER.exception("Failed to create GlucoFarmer dashboard")
             return
         # Re-fetch after creation
-        dashboards = lovelace_data.get("dashboards", {})
+        dashboards = lovelace_data.dashboards
 
-    dashboard = dashboards.get("glucofarmer")
-    if dashboard is None:
+    dashboard_config = dashboards.get("glucofarmer")
+    if dashboard_config is None:
         _LOGGER.warning("GlucoFarmer dashboard not found after creation")
         return
 
     try:
-        await dashboard.async_save(config)
+        await dashboard_config.async_save(config)
         _LOGGER.debug("GlucoFarmer dashboard updated with %d pigs", len(pigs))
     except Exception:
         _LOGGER.exception("Failed to save GlucoFarmer dashboard config")

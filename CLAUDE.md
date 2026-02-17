@@ -191,15 +191,46 @@ Bugfixes nach erstem Live-Test:
 ### v1.0.0 (14.02.2026)
 Initiale Implementation aller 11 Schritte.
 
+### v1.2.1 (17.02.2026)
+Bugfix Dashboard-Erstellung (LovelaceData API):
+- **Fix: `AttributeError: 'LovelaceData' object has no attribute 'get'`** --
+  `dashboard.py:async_update_dashboard` behandelte `LovelaceData` wie ein Dict.
+  `LovelaceData` ist ein Dataclass (definiert in `homeassistant.components.lovelace`).
+  - `hass.data.get("lovelace")` → `hass.data.get(LOVELACE_DATA)` (typsicherer HassKey)
+  - `lovelace_data.get("dashboards")` → `lovelace_data.dashboards` (Attribut-Zugriff)
+  - `lovelace_data.get("dashboards_collection")` existiert nicht auf LovelaceData →
+    Eigene `DashboardsCollection` instanziieren + `async_load()` (wie HA intern)
+  - `allow_single_word: True` noetig weil "glucofarmer" keinen Bindestrich hat
+
 ## OFFENE AENDERUNGEN (noch nicht committed/deployed)
 
 ### Bereits im Code aber noch nicht gepusht:
-- v1.0.2 Bugfixes (TIR dedup, None minutes, Report-ID) -- GEPUSHT UND DEPLOYED
-- v1.1.0 dashboard.py (auto-generiert) -- IM CODE, NOCH NICHT COMMITTED
-- v1.2.0 Persistente Glucose-Speicherung -- IM CODE, NOCH NICHT COMMITTED
-  - store.py: Readings-Storage + date-range Queries (FERTIG)
-  - coordinator.py: weg von In-Memory, hin zu Store-basiert (FERTIG)
-  - __init__.py: Daily Report retrospektiv aus Store + Flush bei Shutdown (FERTIG)
+- v1.0.2 Bugfixes -- GEPUSHT UND DEPLOYED
+- v1.1.0 dashboard.py (auto-generiert) -- GEPUSHT, Dashboard-Bug gefixt in v1.2.1
+- v1.2.0 Persistente Glucose-Speicherung -- GEPUSHT
+- v1.2.1 LovelaceData-Fix in dashboard.py -- IM CODE, NOCH NICHT COMMITTED
+
+## Wichtige HA-Interna (Referenz fuer zukuenftige Aenderungen)
+
+### LovelaceData Zugriff
+`LovelaceData` ist ein Dataclass, KEIN Dict. Zugriff:
+```python
+from homeassistant.components.lovelace import dashboard as lovelace_dashboard
+from homeassistant.components.lovelace.const import LOVELACE_DATA
+
+lovelace_data = hass.data.get(LOVELACE_DATA)       # typisierter Key
+dashboards = lovelace_data.dashboards               # dict[str|None, LovelaceConfig]
+lovelace_data.resources                             # ResourceCollection
+lovelace_data.yaml_dashboards                       # dict fuer YAML-Dashboards
+```
+Dashboard erstellen (kein `dashboards_collection` auf LovelaceData!):
+```python
+coll = lovelace_dashboard.DashboardsCollection(hass)
+await coll.async_load()
+await coll.async_create_item({"url_path": "x", "allow_single_word": True, "title": "X", ...})
+dashboard_config = lovelace_data.dashboards["x"]
+await dashboard_config.async_save(config_dict)
+```
 
 ## Bekannte Einschraenkungen / TODOs
 
