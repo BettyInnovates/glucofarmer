@@ -23,7 +23,8 @@ custom_components/glucofarmer/
   services.yaml        -- Service-UI-Definitionen
   strings.json         -- Texte fuer Config Flow + Entity-Namen
   icons.json           -- Icons fuer alle Entities
-  dashboard.yaml       -- Lovelace Dashboard (4 Seiten, manuell importieren)
+  dashboard.py         -- Auto-generiertes Dashboard (4 Tabs, apexcharts-card)
+  dashboard.yaml       -- Statische Referenz (veraltet, wird nicht mehr benoetigt)
 ```
 
 ## Kernkonzepte
@@ -133,6 +134,38 @@ cp -r custom_components/glucofarmer /config/custom_components/
 
 ## Changelog
 
+### v1.2.0 (17.02.2026)
+Persistente Glucose-Speicherung + retrospektive Statistik:
+- **store.py: Glucose-Readings persistent** -- Alle Messwerte werden dauerhaft in
+  `.storage/glucofarmer_events` gespeichert (Format: `{pig_name, value, status, timestamp}`).
+  Neue Methoden: `async_log_reading`, `get_readings_for_date`, `get_readings_for_range`,
+  `get_readings_today`, `async_flush_readings`. Batch-Save alle 10 Readings fuer weniger I/O.
+- **coordinator.py: Weg von In-Memory** -- `_readings_today` und `_last_reset_date` entfernt.
+  `_track_reading` schreibt jetzt in den persistenten Store. `_compute_tir()` und
+  `_compute_data_completeness()` lesen aus `store.get_readings_today()`.
+  Deduplication via `_last_tracked_sensor_changed` bleibt erhalten.
+- **__init__.py: Daily Report retrospektiv** -- `_send_daily_report` berechnet alle Stats
+  (TIR/TBR/TAR/Completeness/Insulin/BE) aus dem Store fuer den Vortag. Kein Zugriff
+  mehr auf coordinator.data fuer Statistik. Flush vor Report-Generierung.
+- **__init__.py: Readings-Flush bei Shutdown** -- `async_unload_entry` flusht
+  gepufferte Readings bevor HA herunterfaehrt.
+- **Daten ueberleben HA-Neustarts** -- Alle Glucose-Werte und Events persistent.
+- **Beliebige Zeitbereiche abfragbar** -- `get_readings_for_range(pig, start, end)`
+  ermoeglicht Dashboard-Queries ueber beliebige Zeitraeume.
+
+### v1.1.0 (17.02.2026)
+Auto-generiertes dynamisches Dashboard:
+- **Neues File: `dashboard.py`** -- Generiert Lovelace Dashboard automatisch
+  basierend auf konfigurierten Schweinen. Verwendet HA Lovelace Storage API.
+- **Dashboard wird automatisch erstellt** beim ersten Setup (erscheint in Sidebar)
+- **Dashboard aktualisiert sich** bei Schwein hinzufuegen/entfernen und Options-Aenderungen
+- **4 Tabs**: Uebersicht, Eingabe, Statistiken, Einstellungen (als echte Reiter)
+- **ApexCharts Integration**: Glucose-Verlauf mit farbigen Schwellwert-Zonen
+  (rot=kritisch, orange=niedrig/hoch, gruen=normal), alle Schweine in einem Chart
+- **Entity-IDs dynamisch** aus Entity Registry ermittelt (kein Hardcoding)
+- **Eingabe-Seite**: Preset-Buttons + manuelle Service-Buttons pro Schwein
+- Altes statisches `dashboard.yaml` bleibt als Referenz erhalten
+
 ### v1.0.2 (16.02.2026)
 Bugfixes TIR/Completeness und Benachrichtigungen:
 - **Fix: TIR-Berechnung zaehlte jeden 60s-Poll statt echte Dexcom-Readings** --
@@ -158,9 +191,19 @@ Bugfixes nach erstem Live-Test:
 ### v1.0.0 (14.02.2026)
 Initiale Implementation aller 11 Schritte.
 
+## OFFENE AENDERUNGEN (noch nicht committed/deployed)
+
+### Bereits im Code aber noch nicht gepusht:
+- v1.0.2 Bugfixes (TIR dedup, None minutes, Report-ID) -- GEPUSHT UND DEPLOYED
+- v1.1.0 dashboard.py (auto-generiert) -- IM CODE, NOCH NICHT COMMITTED
+- v1.2.0 Persistente Glucose-Speicherung -- IM CODE, NOCH NICHT COMMITTED
+  - store.py: Readings-Storage + date-range Queries (FERTIG)
+  - coordinator.py: weg von In-Memory, hin zu Store-basiert (FERTIG)
+  - __init__.py: Daily Report retrospektiv aus Store + Flush bei Shutdown (FERTIG)
+
 ## Bekannte Einschraenkungen / TODOs
 
-- TIR-Berechnung basiert auf In-Memory-Tracking (geht bei HA-Neustart verloren)
-- Dashboard muss manuell importiert und Entity-IDs angepasst werden
+- Dashboard benoetigt `apexcharts-card` aus HACS (Frontend) fuer Glucose-Charts
 - Keine automatischen Tests vorhanden
 - E-Mail-Report nutzt generischen `notify.notify` Service
+- Manuelle Eingabe auf Eingabe-Seite fuehrt zu Developer Tools (kein Inline-Formular)

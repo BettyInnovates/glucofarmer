@@ -1,4 +1,4 @@
-"""Persistent event storage for GlucoFarmer."""
+"""Persistent event and glucose reading storage for GlucoFarmer."""
 
 from __future__ import annotations
 
@@ -22,27 +22,90 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class GlucoFarmerStore:
-    """Manage persistent storage for GlucoFarmer events."""
+    """Manage persistent storage for events and glucose readings."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the store."""
         self._hass = hass
         self._store = Store[dict[str, Any]](hass, STORAGE_VERSION, STORAGE_KEY)
         self._events: list[dict[str, Any]] = []
+        self._readings: list[dict[str, Any]] = []
         self._loaded = False
 
     async def async_load(self) -> None:
-        """Load events from storage."""
+        """Load data from storage."""
         data = await self._store.async_load()
         if data is not None:
             self._events = data.get("events", [])
+            self._readings = data.get("readings", [])
         else:
             self._events = []
+            self._readings = []
         self._loaded = True
 
     async def _async_save(self) -> None:
-        """Save events to storage."""
-        await self._store.async_save({"events": self._events})
+        """Save data to storage."""
+        await self._store.async_save({
+            "events": self._events,
+            "readings": self._readings,
+        })
+
+    # ---- Glucose readings (persistent) ----
+
+    async def async_log_reading(
+        self,
+        pig_name: str,
+        value: float,
+        status: str,
+        timestamp: str,
+    ) -> None:
+        """Log a glucose reading persistently."""
+        if not self._loaded:
+            await self.async_load()
+
+        self._readings.append({
+            "pig_name": pig_name,
+            "value": value,
+            "status": status,
+            "timestamp": timestamp,
+        })
+        # Save every 10 readings to reduce I/O (readings come every ~5 min)
+        if len(self._readings) % 10 == 0:
+            await self._async_save()
+
+    async def async_flush_readings(self) -> None:
+        """Force save readings to disk."""
+        if self._loaded:
+            await self._async_save()
+
+    @callback
+    def get_readings_for_date(
+        self, pig_name: str, date_str: str
+    ) -> list[dict[str, Any]]:
+        """Get readings for a specific date (YYYY-MM-DD)."""
+        prefix = f"{date_str}T"
+        return [
+            r for r in self._readings
+            if r["pig_name"] == pig_name and r["timestamp"].startswith(prefix)
+        ]
+
+    @callback
+    def get_readings_for_range(
+        self, pig_name: str, start: str, end: str
+    ) -> list[dict[str, Any]]:
+        """Get readings between start and end ISO timestamps."""
+        return [
+            r for r in self._readings
+            if r["pig_name"] == pig_name and start <= r["timestamp"] <= end
+        ]
+
+    @callback
+    def get_readings_today(self, pig_name: str) -> list[dict[str, Any]]:
+        """Get today's readings for a pig."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        return self.get_readings_for_date(pig_name, today)
+
+    # ---- Events (insulin, feeding) ----
 
     async def async_log_insulin(
         self,
@@ -132,14 +195,26 @@ class GlucoFarmerStore:
         return result
 
     @callback
+    def get_events_for_date(
+        self, pig_name: str, date_str: str, event_type: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Get events for a specific date (YYYY-MM-DD)."""
+        prefix = f"{date_str}T"
+        result = [
+            e for e in self._events
+            if e["pig_name"] == pig_name and e["timestamp"].startswith(prefix)
+        ]
+        if event_type is not None:
+            result = [e for e in result if e["type"] == event_type]
+        return result
+
+    @callback
     def get_today_events(
         self, pig_name: str, event_type: str | None = None
     ) -> list[dict[str, Any]]:
         """Get today's events for a pig."""
-        today_start = datetime.now().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        return self.get_events_for_pig(pig_name, event_type, since=today_start)
+        today = datetime.now().strftime("%Y-%m-%d")
+        return self.get_events_for_date(pig_name, today, event_type)
 
     @callback
     def get_all_events(self) -> list[dict[str, Any]]:

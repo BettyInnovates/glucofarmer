@@ -5,7 +5,6 @@ Preclinical CGM monitoring for diabetized pigs.
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta
 import logging
 from typing import Any
@@ -39,6 +38,7 @@ from .const import (
     STATUS_NORMAL,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
+from .dashboard import async_update_dashboard
 from .store import GlucoFarmerStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -132,7 +132,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
         hass.data[DOMAIN]["last_report_date"] = ""
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Auto-generate/update dashboard
+    await async_update_dashboard(hass)
+
+    # Regenerate dashboard when options change (e.g. new presets)
+    entry.async_on_unload(
+        entry.add_update_listener(_async_options_updated)
+    )
+
     return True
+
+
+async def _async_options_updated(
+    hass: HomeAssistant, entry: GlucoFarmerConfigEntry
+) -> None:
+    """Handle options update -- regenerate dashboard with new presets."""
+    await async_update_dashboard(hass)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) -> bool:
@@ -150,9 +166,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry)
         if e.entry_id != entry.entry_id
     ]
     if not remaining:
+        # Flush any buffered readings before shutdown
+        store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
+        await store.async_flush_readings()
         if "daily_report_unsub" in hass.data[DOMAIN]:
             hass.data[DOMAIN]["daily_report_unsub"]()
         hass.data.pop(DOMAIN, None)
+
+    # Update dashboard to remove the unloaded pig
+    if remaining:
+        await async_update_dashboard(hass)
 
     return unload_ok
 
@@ -344,7 +367,12 @@ async def _send_notification(
 
 
 async def _send_daily_report(hass: HomeAssistant) -> None:
-    """Send daily email report at midnight."""
+    """Send daily report for the previous day.
+
+    Runs at midnight (00:00-00:01). Computes all statistics retrospectively
+    from persistent store data for the previous day -- no dependency on
+    in-memory coordinator state that may have been reset.
+    """
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
 
@@ -361,48 +389,96 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
     domain_data["last_report_date"] = today_str
     store: GlucoFarmerStore = domain_data["store"]
 
+    # Flush any buffered readings before generating report
+    await store.async_flush_readings()
+
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         return
 
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
     # Build report
     lines = [
-        f"GlucoFarmer daily report - {(now - timedelta(days=1)).strftime('%Y-%m-%d')}",
+        f"GlucoFarmer daily report - {yesterday}",
         "=" * 60,
         "",
     ]
 
     for entry in entries:
         pig_name = entry.data.get(CONF_PIG_NAME, "Unknown")
-        coordinator: GlucoFarmerCoordinator | None = getattr(
-            entry, "runtime_data", None
+
+        # Get yesterday's readings from persistent store
+        readings = store.get_readings_for_date(pig_name, yesterday)
+
+        # Get yesterday's events from persistent store
+        insulin_events = store.get_events_for_date(
+            pig_name, yesterday, EVENT_TYPE_INSULIN
         )
-        if coordinator is None or coordinator.data is None:
-            lines.append(f"{pig_name}: No data available")
+        feeding_events = store.get_events_for_date(
+            pig_name, yesterday, EVENT_TYPE_FEEDING
+        )
+
+        if not readings:
+            lines.append(f"{pig_name}: No readings recorded for {yesterday}")
             lines.append("")
             continue
 
-        data = coordinator.data
+        # Compute TIR/TBR/TAR from stored readings
+        total = len(readings)
+        in_range = sum(1 for r in readings if r["status"] == STATUS_NORMAL)
+        below = sum(
+            1 for r in readings
+            if r["status"] in (STATUS_LOW, STATUS_CRITICAL_LOW)
+        )
+        above = sum(1 for r in readings if r["status"] == STATUS_HIGH)
+
+        tir = round(in_range / total * 100, 1)
+        tbr = round(below / total * 100, 1)
+        tar = round(above / total * 100, 1)
+
+        # Data completeness: 288 expected readings per day (24h * 60min / 5min)
+        expected_readings = 288
+        completeness = round(min(total / expected_readings * 100, 100.0), 1)
+
+        # Daily totals from events
+        insulin_total = sum(e.get("amount", 0) for e in insulin_events)
+        bes_total = sum(e.get("amount", 0) for e in feeding_events)
+
+        # Current state (if coordinator is available)
+        coordinator: GlucoFarmerCoordinator | None = getattr(
+            entry, "runtime_data", None
+        )
+        current_glucose = "N/A"
+        current_trend = "N/A"
+        current_status = "N/A"
+        if coordinator is not None and coordinator.data is not None:
+            current_glucose = coordinator.data.glucose_value or "N/A"
+            current_trend = coordinator.data.glucose_trend or "N/A"
+            current_status = coordinator.data.glucose_status
+
         lines.extend([
             f"--- {pig_name} ---",
-            f"  Current glucose: {data.glucose_value or 'N/A'} mg/dL ({data.glucose_trend or 'N/A'})",
-            f"  Status: {data.glucose_status}",
-            f"  Time in range: {data.time_in_range_pct}%",
-            f"  Time below range: {data.time_below_range_pct}%",
-            f"  Time above range: {data.time_above_range_pct}%",
-            f"  Data completeness: {data.data_completeness_pct}%",
-            f"  Total insulin today: {data.daily_insulin_total} IU",
-            f"  Total feeding today: {data.daily_bes_total} BE",
+            f"  Current glucose: {current_glucose} mg/dL ({current_trend})",
+            f"  Current status: {current_status}",
+            f"  --- Yesterday ({yesterday}) ---",
+            f"  Readings recorded: {total}",
+            f"  Time in range: {tir}%",
+            f"  Time below range: {tbr}%",
+            f"  Time above range: {tar}%",
+            f"  Data completeness: {completeness}%",
+            f"  Total insulin: {insulin_total} IU",
+            f"  Total feeding: {bes_total} BE",
         ])
 
         # Add notable events
-        yesterday_events = store.get_today_events(pig_name)
+        all_yesterday_events = store.get_events_for_date(pig_name, yesterday)
         emergencies = [
-            e for e in yesterday_events
+            e for e in all_yesterday_events
             if e.get("category") in ("emergency_single", "emergency_double")
         ]
         interventions = [
-            e for e in yesterday_events if e.get("category") == "intervention"
+            e for e in all_yesterday_events if e.get("category") == "intervention"
         ]
 
         if emergencies:
@@ -420,7 +496,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             "notify",
             "notify",
             {
-                "title": f"GlucoFarmer daily report - {(now - timedelta(days=1)).strftime('%Y-%m-%d')}",
+                "title": f"GlucoFarmer daily report - {yesterday}",
                 "message": report_text,
             },
         )
@@ -429,13 +505,12 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         _LOGGER.debug("Could not send daily report via notify service")
 
     # Also create persistent notification (unique per day so old reports are preserved)
-    report_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     await hass.services.async_call(
         "persistent_notification",
         "create",
         {
             "message": report_text,
-            "title": f"GlucoFarmer daily report - {report_date}",
-            "notification_id": f"glucofarmer_daily_report_{report_date}",
+            "title": f"GlucoFarmer daily report - {yesterday}",
+            "notification_id": f"glucofarmer_daily_report_{yesterday}",
         },
     )

@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -82,9 +81,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self.critical_low_threshold: float = DEFAULT_CRITICAL_LOW_THRESHOLD
         self.data_timeout: int = DEFAULT_DATA_TIMEOUT
 
-        # Tracking for TIR calculation -- only unique Dexcom readings
-        self._readings_today: list[dict[str, Any]] = []
-        self._last_reset_date: str = ""
+        # Deduplication: only log genuinely new Dexcom readings
         self._last_tracked_sensor_changed: datetime | None = None
 
     async def _async_update_data(self) -> GlucoFarmerData:
@@ -109,10 +106,10 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         # Determine glucose status
         glucose_status = self._compute_status(glucose_value, reading_age)
 
-        # Track readings for TIR -- only when Dexcom delivers a new value
-        self._track_reading(glucose_value, glucose_status, last_reading_time)
+        # Persist reading to store (only new Dexcom values, deduplicated)
+        await self._track_reading(glucose_value, glucose_status, last_reading_time)
 
-        # Compute daily statistics
+        # Compute daily statistics from persistent store
         tir, tbr, tar = self._compute_tir()
         completeness = self._compute_data_completeness()
         daily_insulin = self._compute_daily_insulin()
@@ -165,23 +162,18 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             return STATUS_HIGH
         return STATUS_NORMAL
 
-    def _track_reading(
+    async def _track_reading(
         self,
         glucose: float | None,
         status: str,
         sensor_changed: datetime | None,
     ) -> None:
-        """Track a reading for TIR calculation.
+        """Persist a glucose reading to the store.
 
-        Only counts a reading when the Dexcom sensor's last_changed timestamp
-        differs from the previously tracked one (= a genuinely new 5-min reading).
-        Resets daily.
+        Only saves when the Dexcom sensor's last_changed timestamp differs
+        from the previously tracked one (= a genuinely new 5-min reading).
+        All readings are stored persistently and survive HA restarts.
         """
-        today = datetime.now().strftime("%Y-%m-%d")
-        if today != self._last_reset_date:
-            self._readings_today = []
-            self._last_reset_date = today
-
         if glucose is None or status == STATUS_NO_DATA:
             return
 
@@ -193,30 +185,35 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             return
 
         self._last_tracked_sensor_changed = sensor_changed
-        self._readings_today.append(
-            {
-                "value": glucose,
-                "status": status,
-                "time": sensor_changed.isoformat() if sensor_changed else datetime.now().isoformat(),
-            }
+        timestamp = (
+            sensor_changed.isoformat()
+            if sensor_changed
+            else datetime.now().isoformat()
+        )
+        await self.store.async_log_reading(
+            pig_name=self.pig_name,
+            value=glucose,
+            status=status,
+            timestamp=timestamp,
         )
 
     def _compute_tir(self) -> tuple[float, float, float]:
-        """Compute time in range, below range, above range percentages."""
-        if not self._readings_today:
+        """Compute time in range, below range, above range from persistent store."""
+        readings = self.store.get_readings_today(self.pig_name)
+        if not readings:
             return 0.0, 0.0, 0.0
 
-        total = len(self._readings_today)
+        total = len(readings)
         in_range = sum(
-            1 for r in self._readings_today if r["status"] == STATUS_NORMAL
+            1 for r in readings if r["status"] == STATUS_NORMAL
         )
         below = sum(
             1
-            for r in self._readings_today
+            for r in readings
             if r["status"] in (STATUS_LOW, STATUS_CRITICAL_LOW)
         )
         above = sum(
-            1 for r in self._readings_today if r["status"] == STATUS_HIGH
+            1 for r in readings if r["status"] == STATUS_HIGH
         )
 
         return (
@@ -226,10 +223,9 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         )
 
     def _compute_data_completeness(self) -> float:
-        """Compute data completeness as percentage of expected 5-min readings today.
+        """Compute data completeness from persistent store.
 
-        Since _readings_today now only contains deduplicated Dexcom readings
-        (one per actual sensor update), the count directly reflects real data.
+        Percentage of expected 5-min Dexcom readings actually received today.
         """
         now = datetime.now()
         minutes_today = now.hour * 60 + now.minute
@@ -237,7 +233,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             return 100.0
         # Dexcom delivers a reading every 5 minutes
         expected_readings = minutes_today / 5
-        actual_readings = len(self._readings_today)
+        actual_readings = len(self.store.get_readings_today(self.pig_name))
         return round(min(actual_readings / expected_readings * 100, 100.0), 1)
 
     def _compute_daily_insulin(self) -> float:
