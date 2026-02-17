@@ -28,6 +28,7 @@
       },
       "manage_insulin_products": {
         "title": "Insulin products",
+        "description": "Add or remove insulin products for this pig.",
         "menu_options": {
           "add_insulin_product": "Add insulin product",
           "remove_insulin_product": "Remove insulin product"
@@ -48,6 +49,7 @@
       },
       "manage_feeding_categories": {
         "title": "Feeding categories",
+        "description": "Add or remove feeding categories for this pig.",
         "menu_options": {
           "add_feeding_category": "Add feeding category",
           "remove_feeding_category": "Remove feeding category"
@@ -67,6 +69,7 @@
       },
       "manage_presets": {
         "title": "Presets",
+        "description": "Add or remove quick-input presets for this pig.",
         "menu_options": {
           "add_preset": "Add preset",
           "remove_preset": "Remove preset"
@@ -118,6 +121,7 @@
           "normal": "Normal",
           "low": "Low",
           "high": "High",
+          "very_high": "Very high",
           "critical_low": "Critical low",
           "no_data": "No data"
         }
@@ -125,14 +129,20 @@
       "reading_age": {
         "name": "Reading age"
       },
-      "time_in_range_today": {
-        "name": "Time in range today"
+      "time_critical_low_pct": {
+        "name": "Time critical low"
       },
-      "time_below_range_today": {
-        "name": "Time below range today"
+      "time_low_pct": {
+        "name": "Time low"
       },
-      "time_above_range_today": {
-        "name": "Time above range today"
+      "time_in_range_pct": {
+        "name": "Time in range"
+      },
+      "time_high_pct": {
+        "name": "Time high"
+      },
+      "time_very_high_pct": {
+        "name": "Time very high"
       },
       "data_completeness_today": {
         "name": "Data completeness today"
@@ -142,6 +152,9 @@
       },
       "daily_bes_total": {
         "name": "Daily BE total"
+      },
+      "today_events": {
+        "name": "Today events"
       }
     },
     "number": {
@@ -154,8 +167,47 @@
       "critical_low_threshold": {
         "name": "Critical low glucose threshold"
       },
+      "very_high_threshold": {
+        "name": "Very high glucose threshold"
+      },
       "data_timeout": {
         "name": "Data timeout"
+      },
+      "feeding_amount": {
+        "name": "Feeding amount"
+      },
+      "insulin_amount": {
+        "name": "Insulin amount"
+      }
+    },
+    "select": {
+      "feeding_category": {
+        "name": "Feeding category"
+      },
+      "insulin_product": {
+        "name": "Insulin product"
+      },
+      "chart_timerange": {
+        "name": "Chart time range"
+      }
+    },
+    "text": {
+      "event_timestamp": {
+        "name": "Event timestamp"
+      },
+      "archive_event_id": {
+        "name": "Archive event ID"
+      }
+    },
+    "button": {
+      "log_feeding": {
+        "name": "Log feeding"
+      },
+      "log_insulin": {
+        "name": "Log insulin"
+      },
+      "archive_event": {
+        "name": "Archive event"
       }
     }
   }

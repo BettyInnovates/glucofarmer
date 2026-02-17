@@ -1,5 +1,8 @@
 ##############################################################################
-# GlucoFarmer Dashboard
+# GlucoFarmer Dashboard v1.3.0 (statische Referenz)
+#
+# HINWEIS: Das Dashboard wird automatisch von dashboard.py generiert.
+# Diese Datei dient nur als Referenz fuer manuelles Setup.
 #
 # Anleitung:
 #   1. In HA: Einstellungen > Dashboards > Dashboard hinzufuegen
@@ -8,14 +11,8 @@
 #   4. Diesen Inhalt einfuegen
 #   5. Fuer jedes Schwein die ENTITY-IDs anpassen (suche nach "piggy_01")
 #
-# Entity-ID Konvention:
-#   sensor.{pig_name}_glucose_value       -> z.B. sensor.piggy_01_glucose_value
-#   sensor.{pig_name}_glucose_trend       -> z.B. sensor.piggy_01_glucose_trend
-#   sensor.{pig_name}_glucose_status      -> z.B. sensor.piggy_01_glucose_status
-#   sensor.{pig_name}_reading_age         -> z.B. sensor.piggy_01_reading_age
-#   sensor.{pig_name}_time_in_range_today -> z.B. sensor.piggy_01_time_in_range_today
-#   number.{pig_name}_low_threshold       -> z.B. number.piggy_01_low_threshold
-#   button.{pig_name}_preset_*            -> z.B. button.piggy_01_preset_fruehstueck
+# Voraussetzungen:
+#   - apexcharts-card (HACS custom card) fuer Glucose-Verlauf
 #
 # Fuer weitere Schweine: Abschnitte duplizieren und IDs anpassen.
 ##############################################################################
@@ -29,11 +26,9 @@ views:
     icon: mdi:view-dashboard
     badges: []
     cards:
-      # -- Header --
       - type: markdown
-        content: "# GlucoFarmer - Uebersicht"
+        content: "# GlucoFarmer"
 
-      # ---- Schwein 1: Piggy-01 ----
       - type: vertical-stack
         cards:
           - type: markdown
@@ -41,99 +36,54 @@ views:
 
           - type: horizontal-stack
             cards:
-              # Glucose Gauge
-              - type: gauge
-                entity: sensor.piggy_01_glucose_value
-                name: Glucose
-                unit: mg/dL
-                min: 20
-                max: 350
-                severity:
-                  green: 70
-                  yellow: 55
-                  red: 0
-                needle: true
-                segments:
-                  - from: 0
-                    color: red
-                    label: Kritisch
-                  - from: 55
-                    color: orange
-                    label: Niedrig
-                  - from: 70
-                    color: green
-                    label: Normal
-                  - from: 180
-                    color: orange
-                    label: Hoch
-                  - from: 250
-                    color: red
-                    label: Sehr hoch
+              - type: conditional
+                conditions:
+                  - condition: state
+                    entity: sensor.piggy_01_glucose_value
+                    state_not: unavailable
+                  - condition: state
+                    entity: sensor.piggy_01_glucose_value
+                    state_not: unknown
+                card:
+                  type: gauge
+                  entity: sensor.piggy_01_glucose_value
+                  name: Glucose
+                  unit: mg/dL
+                  min: 20
+                  max: 350
+                  needle: true
+                  segments:
+                    - from: 0
+                      color: red
+                      label: Kritisch
+                    - from: 55
+                      color: orange
+                      label: Niedrig
+                    - from: 70
+                      color: green
+                      label: Normal
+                    - from: 180
+                      color: orange
+                      label: Hoch
+                    - from: 250
+                      color: red
+                      label: Sehr hoch
 
-              # Trend + Status
               - type: entities
                 entities:
                   - entity: sensor.piggy_01_glucose_value
-                    name: Aktueller Wert
+                    name: Glucose
                   - entity: sensor.piggy_01_glucose_trend
                     name: Trend
-                  - entity: sensor.piggy_01_glucose_status
-                    name: Status
                   - entity: sensor.piggy_01_reading_age
-                    name: Datenalter
+                    name: Sync
 
-          # Mini-Verlaufsgraph
           - type: history-graph
             entities:
               - entity: sensor.piggy_01_glucose_value
                 name: Piggy-01
             hours_to_show: 6
             logarithmic_scale: false
-
-      # ---- Schwein 2: Piggy-02 (Vorlage - bei Bedarf aktivieren) ----
-      # - type: vertical-stack
-      #   cards:
-      #     - type: markdown
-      #       content: "## Piggy-02"
-      #     - type: horizontal-stack
-      #       cards:
-      #         - type: gauge
-      #           entity: sensor.piggy_02_glucose_value
-      #           name: Glucose
-      #           unit: mg/dL
-      #           min: 20
-      #           max: 350
-      #           needle: true
-      #           severity:
-      #             green: 70
-      #             yellow: 55
-      #             red: 0
-      #           segments:
-      #             - from: 0
-      #               color: red
-      #             - from: 55
-      #               color: orange
-      #             - from: 70
-      #               color: green
-      #             - from: 180
-      #               color: orange
-      #             - from: 250
-      #               color: red
-      #         - type: entities
-      #           entities:
-      #             - entity: sensor.piggy_02_glucose_value
-      #               name: Aktueller Wert
-      #             - entity: sensor.piggy_02_glucose_trend
-      #               name: Trend
-      #             - entity: sensor.piggy_02_glucose_status
-      #               name: Status
-      #             - entity: sensor.piggy_02_reading_age
-      #               name: Datenalter
-      #     - type: history-graph
-      #       entities:
-      #         - entity: sensor.piggy_02_glucose_value
-      #           name: Piggy-02
-      #       hours_to_show: 6
 
   ##########################################################################
   # SEITE 2: EINGABE
@@ -146,86 +96,91 @@ views:
       - type: markdown
         content: "# Eingabe"
 
-      # ---- Piggy-01: Presets ----
+      - type: markdown
+        content: >
+          ## Piggy-01 - Aktuell
+
+          {% set val = states('sensor.piggy_01_glucose_value') %}
+          {% set status = states('sensor.piggy_01_glucose_status') %}
+          {% set trend = states('sensor.piggy_01_glucose_trend') %}
+          {% if status in ['critical_low', 'very_high'] %}
+          **! Glucose: {{ val }} mg/dL !**
+          {% elif status in ['low', 'high'] %}
+          **Glucose: {{ val }} mg/dL**
+          {% else %}
+          Glucose: {{ val }} mg/dL
+          {% endif %}
+          | Trend: {{ trend }}
+          | Insulin heute: {{ states('sensor.piggy_01_daily_insulin_total') }} IU
+          | BE heute: {{ states('sensor.piggy_01_daily_bes_total') }} BE
+
       - type: vertical-stack
         cards:
           - type: markdown
-            content: "## Piggy-01 - Schnelleingabe"
+            content: "## Fuetterung loggen"
+          - type: entities
+            entities:
+              - entity: number.piggy_01_feeding_amount
+                name: Menge (BE)
+              - entity: select.piggy_01_feeding_category
+                name: Kategorie
+              - entity: text.piggy_01_event_timestamp
+                name: Zeitstempel (leer = jetzt)
+          - type: button
+            entity: button.piggy_01_log_feeding
+            name: Fuetterung loggen
+            icon: mdi:food-apple-outline
+            tap_action:
+              action: toggle
+            show_state: false
 
-          - type: horizontal-stack
-            cards:
-              - type: button
-                entity: button.piggy_01_preset_fruehstueck
-                name: Fruehstueck
-                icon: mdi:food-croissant
-                tap_action:
-                  action: toggle
-                show_state: false
-
-              - type: button
-                entity: button.piggy_01_preset_abendessen
-                name: Abendessen
-                icon: mdi:food-turkey
-                tap_action:
-                  action: toggle
-                show_state: false
-
-              - type: button
-                entity: button.piggy_01_preset_novorapid_standard
-                name: NovoRapid
-                icon: mdi:needle
-                tap_action:
-                  action: toggle
-                show_state: false
-
-          - type: horizontal-stack
-            cards:
-              - type: button
-                entity: button.piggy_01_preset_notfallration_einfach
-                name: Notfall 1x
-                icon: mdi:alert
-                tap_action:
-                  action: toggle
-                show_state: false
-
-              - type: button
-                entity: button.piggy_01_preset_notfallration_doppelt
-                name: Notfall 2x
-                icon: mdi:alert-plus
-                tap_action:
-                  action: toggle
-                show_state: false
-
-      # ---- Manuelle Eingabe (Services) ----
       - type: vertical-stack
         cards:
           - type: markdown
-            content: "## Manuelle Eingabe"
+            content: "## Insulin loggen"
+          - type: entities
+            entities:
+              - entity: number.piggy_01_insulin_amount
+                name: Menge (IU)
+              - entity: select.piggy_01_insulin_product
+                name: Produkt
+              - entity: text.piggy_01_event_timestamp
+                name: Zeitstempel (leer = jetzt)
+          - type: button
+            entity: button.piggy_01_log_insulin
+            name: Insulin loggen
+            icon: mdi:needle
+            tap_action:
+              action: toggle
+            show_state: false
+
+      - type: vertical-stack
+        cards:
           - type: markdown
             content: >
-              Fuer manuelle Eingaben nutze die HA-Dienste:
+              ## Letzte Eintraege
 
-              - **Entwicklerwerkzeuge > Dienste > `glucofarmer.log_insulin`**
-
-              - **Entwicklerwerkzeuge > Dienste > `glucofarmer.log_feeding`**
-
-              - **Entwicklerwerkzeuge > Dienste > `glucofarmer.delete_event`**
-
-      # ---- Aktuelle Werte als Kontext ----
-      - type: entities
-        title: Piggy-01 - Aktuell
-        show_header_toggle: false
-        entities:
-          - entity: sensor.piggy_01_glucose_value
-            name: Glucose
-          - entity: sensor.piggy_01_glucose_trend
-            name: Trend
-          - entity: sensor.piggy_01_glucose_status
-            name: Status
-          - entity: sensor.piggy_01_daily_insulin_total
-            name: Insulin heute
-          - entity: sensor.piggy_01_daily_bes_total
-            name: BE heute
+              {% set events = state_attr('sensor.piggy_01_today_events', 'events') or [] %}
+              {% if events | length > 0 %}
+              | Zeit | Typ | Menge | ID |
+              |------|-----|-------|-----|
+              {% for e in events %}
+              | {{ e.timestamp[11:16] if e.timestamp | length > 16 else e.timestamp }} | {{ e.type }} | {{ e.amount }} {{ 'IU' if e.type == 'insulin' else 'BE' }} | `{{ e.id[:8] }}` |
+              {% endfor %}
+              {% else %}
+              Keine Eintraege heute.
+              {% endif %}
+          - type: entities
+            entities:
+              - entity: text.piggy_01_archive_event_id
+                name: Event-ID zum Archivieren
+          - type: button
+            entity: button.piggy_01_archive_event
+            name: Event archivieren
+            icon: mdi:archive-arrow-down
+            tap_action:
+              action: toggle
+            show_state: false
 
   ##########################################################################
   # SEITE 3: STATISTIKEN
@@ -236,73 +191,90 @@ views:
     badges: []
     cards:
       - type: markdown
-        content: "# Tages-Statistiken"
+        content: "# Statistiken"
 
-      # ---- Piggy-01 Statistiken ----
+      - type: entities
+        entities:
+          - entity: select.piggy_01_chart_timerange
+            name: Zeitraum
+
       - type: vertical-stack
         cards:
           - type: markdown
             content: "## Piggy-01"
 
-          # TIR / TBR / TAR
           - type: horizontal-stack
             cards:
-              - type: gauge
-                entity: sensor.piggy_01_time_in_range_today
-                name: TIR
-                unit: "%"
-                min: 0
-                max: 100
-                severity:
-                  green: 70
-                  yellow: 50
-                  red: 0
-                needle: true
+              - type: markdown
+                content: >
+                  ### Zonen-Verteilung
 
-              - type: gauge
-                entity: sensor.piggy_01_time_below_range_today
-                name: TBR
-                unit: "%"
-                min: 0
-                max: 100
-                severity:
-                  green: 0
-                  yellow: 5
-                  red: 10
-                needle: true
+                  🔴 {{ states('sensor.piggy_01_time_very_high_pct') }}% Sehr hoch
 
-              - type: gauge
-                entity: sensor.piggy_01_time_above_range_today
-                name: TAR
-                unit: "%"
-                min: 0
-                max: 100
-                severity:
-                  green: 0
-                  yellow: 15
-                  red: 25
-                needle: true
+                  🟠 {{ states('sensor.piggy_01_time_high_pct') }}% Hoch
 
-          # Datenvollstaendigkeit + Summen
-          - type: entities
-            entities:
-              - entity: sensor.piggy_01_data_completeness_today
-                name: Datenvollstaendigkeit
-              - entity: sensor.piggy_01_daily_insulin_total
-                name: Insulin gesamt (IU)
-              - entity: sensor.piggy_01_daily_bes_total
-                name: Fuetterung gesamt (BE)
+                  🟢 {{ states('sensor.piggy_01_time_in_range_pct') }}% Zielbereich
 
-          # 24h Verlauf
-          - type: history-graph
-            title: Glucose-Verlauf (24h)
-            entities:
+                  🟡 {{ states('sensor.piggy_01_time_low_pct') }}% Niedrig
+
+                  🔴 {{ states('sensor.piggy_01_time_critical_low_pct') }}% Sehr niedrig
+
+              - type: entities
+                title: Details
+                entities:
+                  - entity: sensor.piggy_01_data_completeness_today
+                    name: Datenvollstaendigkeit
+                  - entity: sensor.piggy_01_daily_insulin_total
+                    name: Insulin gesamt
+                  - entity: sensor.piggy_01_daily_bes_total
+                    name: Fuetterung gesamt
+
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Glucose-Verlauf
+            graph_span: 24h
+            apex_config:
+              chart:
+                toolbar:
+                  show: true
+                  tools:
+                    download: true
+                    selection: true
+                    zoom: true
+                    zoomin: true
+                    zoomout: true
+                    pan: true
+                    reset: true
+              yaxis:
+                - min: 20
+                  max: 350
+                  title:
+                    text: mg/dL
+              annotations:
+                yaxis:
+                  - y: 55
+                    borderColor: "#FF0000"
+                    label:
+                      text: Kritisch
+                  - y: 70
+                    borderColor: "#FFA500"
+                    label:
+                      text: Niedrig
+                  - y: 180
+                    borderColor: "#FFA500"
+                    label:
+                      text: Hoch
+                  - y: 250
+                    borderColor: "#FF0000"
+                    label:
+                      text: Sehr hoch
+            series:
               - entity: sensor.piggy_01_glucose_value
-                name: Piggy-01
-            hours_to_show: 24
-
-      # ---- Piggy-02 Statistiken (Vorlage) ----
-      # Abschnitt duplizieren und "piggy_01" durch "piggy_02" ersetzen
+                name: Glucose
+                type: line
+                color: "#2196F3"
+                stroke_width: 2
 
   ##########################################################################
   # SEITE 4: EINSTELLUNGEN
@@ -315,21 +287,21 @@ views:
       - type: markdown
         content: "# Einstellungen"
 
-      # ---- Piggy-01 Schwellwerte ----
       - type: entities
         title: "Piggy-01 - Schwellwerte"
         show_header_toggle: false
         entities:
+          - entity: number.piggy_01_critical_low_threshold
+            name: Kritisch niedrig (mg/dL)
           - entity: number.piggy_01_low_threshold
             name: Untere Grenze (mg/dL)
           - entity: number.piggy_01_high_threshold
             name: Obere Grenze (mg/dL)
-          - entity: number.piggy_01_critical_low_threshold
-            name: Kritisch niedrig (mg/dL)
+          - entity: number.piggy_01_very_high_threshold
+            name: Sehr hoch (mg/dL)
           - entity: number.piggy_01_data_timeout
             name: Daten-Timeout (Minuten)
 
-      # ---- Kataloge & Presets ----
       - type: markdown
         content: >
           ## Kataloge und Presets verwalten
@@ -345,18 +317,4 @@ views:
 
           - Fuetterungskategorien hinzufuegen/entfernen
 
-          - Presets erstellen/loeschen
-
-      # ---- Piggy-02 Schwellwerte (Vorlage) ----
-      # - type: entities
-      #   title: "Piggy-02 - Schwellwerte"
-      #   show_header_toggle: false
-      #   entities:
-      #     - entity: number.piggy_02_low_threshold
-      #       name: Untere Grenze (mg/dL)
-      #     - entity: number.piggy_02_high_threshold
-      #       name: Obere Grenze (mg/dL)
-      #     - entity: number.piggy_02_critical_low_threshold
-      #       name: Kritisch niedrig (mg/dL)
-      #     - entity: number.piggy_02_data_timeout
-      #       name: Daten-Timeout (Minuten)
+          - Presets erstellen/loeschen (erscheinen als Buttons auf der Eingabe-Seite)

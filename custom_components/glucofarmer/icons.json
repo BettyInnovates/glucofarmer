@@ -22,6 +22,7 @@
           "normal": "mdi:check-circle",
           "low": "mdi:arrow-down-circle",
           "high": "mdi:arrow-up-circle",
+          "very_high": "mdi:alert-circle",
           "critical_low": "mdi:alert-circle",
           "no_data": "mdi:help-circle"
         }
@@ -29,14 +30,20 @@
       "reading_age": {
         "default": "mdi:clock-outline"
       },
-      "time_in_range_today": {
-        "default": "mdi:target"
+      "time_critical_low_pct": {
+        "default": "mdi:alert-circle"
       },
-      "time_below_range_today": {
+      "time_low_pct": {
         "default": "mdi:arrow-down-bold-circle"
       },
-      "time_above_range_today": {
+      "time_in_range_pct": {
+        "default": "mdi:target"
+      },
+      "time_high_pct": {
         "default": "mdi:arrow-up-bold-circle"
+      },
+      "time_very_high_pct": {
+        "default": "mdi:alert-circle-outline"
       },
       "data_completeness_today": {
         "default": "mdi:database-check"
@@ -46,6 +53,9 @@
       },
       "daily_bes_total": {
         "default": "mdi:food-apple"
+      },
+      "today_events": {
+        "default": "mdi:clipboard-list"
       }
     },
     "number": {
@@ -58,8 +68,47 @@
       "critical_low_threshold": {
         "default": "mdi:alert"
       },
+      "very_high_threshold": {
+        "default": "mdi:alert-outline"
+      },
       "data_timeout": {
         "default": "mdi:timer-alert-outline"
+      },
+      "feeding_amount": {
+        "default": "mdi:food-apple"
+      },
+      "insulin_amount": {
+        "default": "mdi:needle"
+      }
+    },
+    "select": {
+      "feeding_category": {
+        "default": "mdi:tag"
+      },
+      "insulin_product": {
+        "default": "mdi:medical-bag"
+      },
+      "chart_timerange": {
+        "default": "mdi:clock-time-eight-outline"
+      }
+    },
+    "text": {
+      "event_timestamp": {
+        "default": "mdi:calendar-clock"
+      },
+      "archive_event_id": {
+        "default": "mdi:identifier"
+      }
+    },
+    "button": {
+      "log_feeding": {
+        "default": "mdi:food-apple-outline"
+      },
+      "log_insulin": {
+        "default": "mdi:needle"
+      },
+      "archive_event": {
+        "default": "mdi:archive-arrow-down"
       }
     }
   }

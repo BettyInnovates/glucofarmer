@@ -54,7 +54,7 @@ def _build_overview_view(
     """Build the overview view with gauges and apexcharts."""
     cards: list[dict[str, Any]] = []
 
-    # ApexCharts: all pigs in one chart with colored threshold zones
+    # ApexCharts: all pigs in one chart with colored 5-zone threshold areas
     series = []
     for i, pig in enumerate(pigs):
         entity_id = pig["entities"].get("glucose_value")
@@ -113,12 +113,22 @@ def _build_overview_view(
                         },
                         {
                             "y": 180,
-                            "y2": 350,
+                            "y2": 250,
                             "fillColor": "#FF9800",
                             "opacity": 0.12,
                             "label": {
                                 "text": "Hoch",
                                 "style": {"color": "#FF9800"},
+                            },
+                        },
+                        {
+                            "y": 250,
+                            "y2": 400,
+                            "fillColor": "#EF5350",
+                            "opacity": 0.12,
+                            "label": {
+                                "text": "Sehr hoch",
+                                "style": {"color": "#EF5350"},
                             },
                         },
                     ],
@@ -127,7 +137,7 @@ def _build_overview_view(
             "series": series,
         })
 
-    # Per pig: gauge + current values
+    # Per pig: conditional gauge + info
     for pig in pigs:
         ents = pig["entities"]
         pig_cards: list[dict[str, Any]] = [
@@ -135,32 +145,40 @@ def _build_overview_view(
         ]
 
         row_cards: list[dict[str, Any]] = []
-
         glucose_entity = ents.get("glucose_value")
+
         if glucose_entity:
+            # Gauge: only when sensor available
             row_cards.append({
-                "type": "gauge",
-                "entity": glucose_entity,
-                "name": "Glucose",
-                "unit": "mg/dL",
-                "min": 20,
-                "max": 350,
-                "needle": True,
-                "segments": [
-                    {"from": 0, "color": "red", "label": "Kritisch"},
-                    {"from": 55, "color": "orange", "label": "Niedrig"},
-                    {"from": 70, "color": "green", "label": "Normal"},
-                    {"from": 180, "color": "orange", "label": "Hoch"},
-                    {"from": 250, "color": "red", "label": "Sehr hoch"},
+                "type": "conditional",
+                "conditions": [
+                    {"condition": "state", "entity": glucose_entity, "state_not": "unavailable"},
+                    {"condition": "state", "entity": glucose_entity, "state_not": "unknown"},
                 ],
+                "card": {
+                    "type": "gauge",
+                    "entity": glucose_entity,
+                    "name": "Glucose",
+                    "unit": "mg/dL",
+                    "min": 20,
+                    "max": 350,
+                    "needle": True,
+                    "segments": [
+                        {"from": 0, "color": "red", "label": "Kritisch"},
+                        {"from": 55, "color": "orange", "label": "Niedrig"},
+                        {"from": 70, "color": "green", "label": "Normal"},
+                        {"from": 180, "color": "orange", "label": "Hoch"},
+                        {"from": 250, "color": "red", "label": "Sehr hoch"},
+                    ],
+                },
             })
 
+        # Info: Glucose, Trend, Sync (no Status)
         status_entities = []
         for key, label in [
-            ("glucose_value", "Aktueller Wert"),
+            ("glucose_value", "Glucose"),
             ("glucose_trend", "Trend"),
-            ("glucose_status", "Status"),
-            ("reading_age", "Datenalter"),
+            ("reading_age", "Sync"),
         ]:
             if key in ents:
                 status_entities.append({"entity": ents[key], "name": label})
@@ -187,7 +205,7 @@ def _build_overview_view(
 def _build_input_view(
     pigs: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Build the input view with preset buttons and manual input links."""
+    """Build the input view with forms, presets, and event management."""
     cards: list[dict[str, Any]] = []
 
     for pig in pigs:
@@ -197,31 +215,46 @@ def _build_input_view(
             {"type": "markdown", "content": f"## {pig_name}"},
         ]
 
-        # Current values as context
-        context_entities = []
-        for key, label in [
-            ("glucose_value", "Glucose"),
-            ("glucose_status", "Status"),
-            ("daily_insulin_total", "Insulin heute"),
-            ("daily_bes_total", "BE heute"),
-        ]:
-            if key in ents:
-                context_entities.append({"entity": ents[key], "name": label})
+        # Current status as markdown template (bold for critical values)
+        glucose_entity = ents.get("glucose_value", "")
+        status_entity = ents.get("glucose_status", "")
+        trend_entity = ents.get("glucose_trend", "")
+        insulin_entity = ents.get("daily_insulin_total", "")
+        bes_entity = ents.get("daily_bes_total", "")
 
-        if context_entities:
+        if glucose_entity:
             pig_cards.append({
-                "type": "entities",
-                "title": "Aktuell",
-                "show_header_toggle": False,
-                "entities": context_entities,
+                "type": "markdown",
+                "content": (
+                    f"{{% set val = states('{glucose_entity}') %}}"
+                    f"{{% set status = states('{status_entity}') %}}"
+                    f"{{% set trend = states('{trend_entity}') %}}"
+                    "{% if status in ['critical_low', 'very_high'] %}"
+                    "**! Glucose: {{ val }} mg/dL !**"
+                    "{% elif status in ['low', 'high'] %}"
+                    "**Glucose: {{ val }} mg/dL**"
+                    "{% else %}"
+                    "Glucose: {{ val }} mg/dL"
+                    "{% endif %}"
+                    " | Trend: {{ trend }}"
+                    f" | Insulin heute: {{{{ states('{insulin_entity}') }}}} IU"
+                    f" | BE heute: {{{{ states('{bes_entity}') }}}} BE"
+                ),
             })
 
-        # Preset buttons
+        # Preset buttons (quick input)
         preset_keys = sorted(k for k in ents if k.startswith("preset_"))
         if preset_keys:
             pig_cards.append({
                 "type": "markdown",
-                "content": "### Schnelleingabe",
+                "content": "### Schnelleingabe (Presets)",
+            })
+            pig_cards.append({
+                "type": "markdown",
+                "content": (
+                    "Presets werden unter **Einstellungen > Geraete & Dienste > "
+                    "GlucoFarmer > Konfigurieren** verwaltet."
+                ),
             })
 
             button_cards = []
@@ -238,58 +271,99 @@ def _build_input_view(
                     "show_state": False,
                 })
 
-            # Rows of 3
             for i in range(0, len(button_cards), 3):
                 pig_cards.append({
                     "type": "horizontal-stack",
                     "cards": button_cards[i:i + 3],
                 })
 
-        # Manual input buttons
-        pig_cards.append({
-            "type": "markdown",
-            "content": "### Manuelle Eingabe",
-        })
-        pig_cards.append({
-            "type": "horizontal-stack",
-            "cards": [
-                {
+        # Feeding form
+        feeding_entities = []
+        for key, label in [
+            ("feeding_amount", "Menge (BE)"),
+            ("feeding_category", "Kategorie"),
+            ("event_timestamp", "Zeitstempel (leer = jetzt)"),
+        ]:
+            if key in ents:
+                feeding_entities.append({"entity": ents[key], "name": label})
+
+        if feeding_entities:
+            pig_cards.append({"type": "markdown", "content": "### Fuetterung loggen"})
+            pig_cards.append({"type": "entities", "entities": feeding_entities})
+            if "log_feeding" in ents:
+                pig_cards.append({
                     "type": "button",
+                    "entity": ents["log_feeding"],
+                    "name": "Fuetterung loggen",
+                    "icon": "mdi:food-apple-outline",
+                    "tap_action": {"action": "toggle"},
+                    "show_state": False,
+                })
+
+        # Insulin form
+        insulin_entities = []
+        for key, label in [
+            ("insulin_amount", "Menge (IU)"),
+            ("insulin_product", "Produkt"),
+            ("event_timestamp", "Zeitstempel (leer = jetzt)"),
+        ]:
+            if key in ents:
+                insulin_entities.append({"entity": ents[key], "name": label})
+
+        if insulin_entities:
+            pig_cards.append({"type": "markdown", "content": "### Insulin loggen"})
+            pig_cards.append({"type": "entities", "entities": insulin_entities})
+            if "log_insulin" in ents:
+                pig_cards.append({
+                    "type": "button",
+                    "entity": ents["log_insulin"],
                     "name": "Insulin loggen",
                     "icon": "mdi:needle",
-                    "icon_height": "40px",
-                    "tap_action": {
-                        "action": "perform-action",
-                        "perform_action": "glucofarmer.log_insulin",
-                        "data": {"pig_name": pig_name},
-                    },
+                    "tap_action": {"action": "toggle"},
                     "show_state": False,
-                },
-                {
-                    "type": "button",
-                    "name": "Fuetterung loggen",
-                    "icon": "mdi:food-apple",
-                    "icon_height": "40px",
-                    "tap_action": {
-                        "action": "perform-action",
-                        "perform_action": "glucofarmer.log_feeding",
-                        "data": {"pig_name": pig_name},
-                    },
-                    "show_state": False,
-                },
-                {
-                    "type": "button",
-                    "name": "Event loeschen",
-                    "icon": "mdi:delete",
-                    "icon_height": "40px",
-                    "tap_action": {
-                        "action": "navigate",
-                        "navigation_path": "/developer-tools/action",
-                    },
-                    "show_state": False,
-                },
-            ],
-        })
+                })
+
+        # Today's events list + archive
+        events_entity = ents.get("today_events")
+        if events_entity:
+            pig_cards.append({
+                "type": "markdown",
+                "content": (
+                    "### Letzte Eintraege\n\n"
+                    f"{{% set events = state_attr('{events_entity}', 'events') or [] %}}"
+                    "{% if events | length > 0 %}"
+                    "| Zeit | Typ | Menge | ID |\n"
+                    "|------|-----|-------|----|\n"
+                    "{% for e in events %}"
+                    "| {{ e.timestamp[11:16] if e.timestamp | length > 16 else e.timestamp }}"
+                    " | {{ e.type }}"
+                    " | {{ e.amount }} {{ 'IU' if e.type == 'insulin' else 'BE' }}"
+                    " | `{{ e.id[:8] }}` |\n"
+                    "{% endfor %}"
+                    "{% else %}"
+                    "Keine Eintraege heute."
+                    "{% endif %}"
+                ),
+            })
+
+        # Archive controls
+        archive_entities = []
+        if "archive_event_id" in ents:
+            archive_entities.append({
+                "entity": ents["archive_event_id"],
+                "name": "Event-ID zum Archivieren",
+            })
+        if archive_entities:
+            pig_cards.append({"type": "entities", "entities": archive_entities})
+        if "archive_event" in ents:
+            pig_cards.append({
+                "type": "button",
+                "entity": ents["archive_event"],
+                "name": "Event archivieren",
+                "icon": "mdi:archive-arrow-down",
+                "tap_action": {"action": "toggle"},
+                "show_state": False,
+            })
 
         cards.append({"type": "vertical-stack", "cards": pig_cards})
 
@@ -304,8 +378,20 @@ def _build_input_view(
 def _build_stats_view(
     pigs: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Build the statistics view with TIR gauges and charts."""
+    """Build the statistics view with 5-zone distribution and charts."""
     cards: list[dict[str, Any]] = []
+
+    # Chart timerange selector (use first pig's entity)
+    for pig in pigs:
+        if "chart_timerange" in pig["entities"]:
+            cards.append({
+                "type": "entities",
+                "entities": [{
+                    "entity": pig["entities"]["chart_timerange"],
+                    "name": "Zeitraum",
+                }],
+            })
+            break
 
     for pig in pigs:
         ents = pig["entities"]
@@ -313,73 +399,91 @@ def _build_stats_view(
             {"type": "markdown", "content": f"## {pig['name']}"},
         ]
 
-        # TIR / TBR / TAR gauges
-        gauge_cards = []
-        for key, name, green, yellow, red in [
-            ("time_in_range_today", "TIR", 70, 50, 0),
-            ("time_below_range_today", "TBR", 0, 5, 10),
-            ("time_above_range_today", "TAR", 0, 15, 25),
+        # 5-zone distribution as text + details
+        zone_parts = []
+        for key, emoji, label in [
+            ("time_very_high_pct", "\U0001f534", "Sehr hoch"),
+            ("time_high_pct", "\U0001f7e0", "Hoch"),
+            ("time_in_range_pct", "\U0001f7e2", "Zielbereich"),
+            ("time_low_pct", "\U0001f7e1", "Niedrig"),
+            ("time_critical_low_pct", "\U0001f534", "Sehr niedrig"),
         ]:
             if key in ents:
-                gauge_cards.append({
-                    "type": "gauge",
-                    "entity": ents[key],
-                    "name": name,
-                    "unit": "%",
-                    "min": 0,
-                    "max": 100,
-                    "needle": True,
-                    "severity": {
-                        "green": green,
-                        "yellow": yellow,
-                        "red": red,
-                    },
+                zone_parts.append(
+                    f"{emoji} {{{{ states('{ents[key]}') }}}}% {label}"
+                )
+
+        if zone_parts:
+            zone_md = "### Zonen-Verteilung\n\n" + "\n\n".join(zone_parts)
+            detail_entities = []
+            for key, label in [
+                ("data_completeness_today", "Datenvollstaendigkeit"),
+                ("daily_insulin_total", "Insulin gesamt"),
+                ("daily_bes_total", "Fuetterung gesamt"),
+            ]:
+                if key in ents:
+                    detail_entities.append({"entity": ents[key], "name": label})
+
+            row_cards: list[dict[str, Any]] = [
+                {"type": "markdown", "content": zone_md},
+            ]
+            if detail_entities:
+                row_cards.append({
+                    "type": "entities",
+                    "title": "Details",
+                    "entities": detail_entities,
                 })
+            pig_cards.append({"type": "horizontal-stack", "cards": row_cards})
 
-        if gauge_cards:
-            pig_cards.append({"type": "horizontal-stack", "cards": gauge_cards})
-
-        # Completeness + totals
-        detail_entities = []
-        for key, label in [
-            ("data_completeness_today", "Datenvollstaendigkeit"),
-            ("daily_insulin_total", "Insulin gesamt (IU)"),
-            ("daily_bes_total", "Fuetterung gesamt (BE)"),
-        ]:
-            if key in ents:
-                detail_entities.append({"entity": ents[key], "name": label})
-
-        if detail_entities:
-            pig_cards.append({
-                "type": "entities",
-                "entities": detail_entities,
-            })
-
-        # 24h chart per pig
+        # Glucose chart with zoom/pan and 5-zone annotations
         glucose_entity = ents.get("glucose_value")
         if glucose_entity:
             pig_cards.append({
                 "type": "custom:apexcharts-card",
                 "header": {
                     "show": True,
-                    "title": f"{pig['name']} - 24h Verlauf",
+                    "title": f"{pig['name']} - Glucose-Verlauf",
                 },
                 "graph_span": "24h",
-                "yaxis": [{"min": 20, "max": 350}],
                 "apex_config": {
-                    "chart": {"height": 250},
+                    "chart": {
+                        "height": 300,
+                        "toolbar": {
+                            "show": True,
+                            "tools": {
+                                "download": True,
+                                "selection": True,
+                                "zoom": True,
+                                "zoomin": True,
+                                "zoomout": True,
+                                "pan": True,
+                                "reset": True,
+                            },
+                        },
+                    },
+                    "yaxis": [{
+                        "min": 20,
+                        "max": 350,
+                        "title": {"text": "mg/dL"},
+                    }],
                     "annotations": {
                         "yaxis": [
-                            {"y": 0, "y2": 55, "fillColor": "#EF5350", "opacity": 0.12},
-                            {"y": 55, "y2": 70, "fillColor": "#FF9800", "opacity": 0.12},
-                            {"y": 70, "y2": 180, "fillColor": "#4CAF50", "opacity": 0.08},
-                            {"y": 180, "y2": 350, "fillColor": "#FF9800", "opacity": 0.12},
+                            {"y": 55, "borderColor": "#FF0000",
+                             "label": {"text": "Kritisch"}},
+                            {"y": 70, "borderColor": "#FFA500",
+                             "label": {"text": "Niedrig"}},
+                            {"y": 180, "borderColor": "#FFA500",
+                             "label": {"text": "Hoch"}},
+                            {"y": 250, "borderColor": "#FF0000",
+                             "label": {"text": "Sehr hoch"}},
                         ],
                     },
                 },
                 "series": [{
                     "entity": glucose_entity,
                     "name": pig["name"],
+                    "type": "line",
+                    "color": "#2196F3",
                     "stroke_width": 2,
                 }],
             })
@@ -405,9 +509,10 @@ def _build_settings_view(
 
         threshold_entities = []
         for key, label in [
+            ("critical_low_threshold", "Kritisch niedrig (mg/dL)"),
             ("low_threshold", "Untere Grenze (mg/dL)"),
             ("high_threshold", "Obere Grenze (mg/dL)"),
-            ("critical_low_threshold", "Kritisch niedrig (mg/dL)"),
+            ("very_high_threshold", "Sehr hoch (mg/dL)"),
             ("data_timeout", "Daten-Timeout (Minuten)"),
         ]:
             if key in ents:
@@ -427,7 +532,11 @@ def _build_settings_view(
             "## Kataloge und Presets verwalten\n\n"
             "Insulin-Produkte, Fuetterungskategorien und Presets werden ueber "
             "den **Options Flow** der Integration verwaltet:\n\n"
-            "**Einstellungen > Geraete & Dienste > GlucoFarmer > Konfigurieren**"
+            "**Einstellungen > Geraete & Dienste > GlucoFarmer > Konfigurieren**\n\n"
+            "Dort kannst du:\n\n"
+            "- Insulin-Produkte hinzufuegen/entfernen\n\n"
+            "- Fuetterungskategorien hinzufuegen/entfernen\n\n"
+            "- Presets erstellen/loeschen (erscheinen als Buttons auf der Eingabe-Seite)"
         ),
     })
 

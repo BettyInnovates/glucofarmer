@@ -3,7 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "glucofarmer"
-PLATFORMS = [Platform.SENSOR, Platform.NUMBER, Platform.BUTTON]
+PLATFORMS = [Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.TEXT]
 
 # Config keys
 CONF_PIG_NAME = "pig_name"
@@ -20,11 +20,13 @@ DEFAULT_LOW_THRESHOLD = 70
 DEFAULT_HIGH_THRESHOLD = 180
 DEFAULT_CRITICAL_LOW_THRESHOLD = 55
 DEFAULT_DATA_TIMEOUT = 20  # minutes
+DEFAULT_VERY_HIGH_THRESHOLD = 250
 
 # Glucose status values
 STATUS_NORMAL = "normal"
 STATUS_LOW = "low"
 STATUS_HIGH = "high"
+STATUS_VERY_HIGH = "very_high"
 STATUS_CRITICAL_LOW = "critical_low"
 STATUS_NO_DATA = "no_data"
 

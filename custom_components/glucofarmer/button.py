@@ -1,4 +1,4 @@
-"""Button platform for GlucoFarmer presets."""
+"""Button platform for GlucoFarmer presets and actions."""
 
 from __future__ import annotations
 
@@ -28,18 +28,30 @@ async def async_setup_entry(
     entry: GlucoFarmerConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up GlucoFarmer preset button entities."""
+    """Set up GlucoFarmer button entities."""
     coordinator = entry.runtime_data
     pig_name = entry.data[CONF_PIG_NAME]
-    presets: list[dict[str, Any]] = entry.options.get(CONF_PRESETS, [])
     store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
 
-    async_add_entities(
-        GlucoFarmerPresetButton(
-            coordinator, store, preset, pig_name, entry.entry_id
+    entities: list[ButtonEntity] = []
+
+    # Preset buttons
+    presets: list[dict[str, Any]] = entry.options.get(CONF_PRESETS, [])
+    for preset in presets:
+        entities.append(
+            GlucoFarmerPresetButton(
+                coordinator, store, preset, pig_name, entry.entry_id
+            )
         )
-        for preset in presets
-    )
+
+    # Action buttons
+    entities.extend([
+        GlucoFarmerLogFeedingButton(coordinator, pig_name, entry.entry_id, store),
+        GlucoFarmerLogInsulinButton(coordinator, pig_name, entry.entry_id, store),
+        GlucoFarmerArchiveEventButton(coordinator, pig_name, entry.entry_id, store),
+    ])
+
+    async_add_entities(entities)
 
 
 class GlucoFarmerPresetButton(ButtonEntity):
@@ -108,5 +120,137 @@ class GlucoFarmerPresetButton(ButtonEntity):
                 self._pig_name,
             )
 
-        # Trigger coordinator refresh to update daily totals
         await self._coordinator.async_request_refresh()
+
+
+class GlucoFarmerLogFeedingButton(ButtonEntity):
+    """Button that logs a feeding event from current input values."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "log_feeding"
+    _attr_icon = "mdi:food-apple-outline"
+
+    def __init__(
+        self,
+        coordinator: GlucoFarmerCoordinator,
+        pig_name: str,
+        entry_id: str,
+        store: GlucoFarmerStore,
+    ) -> None:
+        """Initialize the log feeding button."""
+        self._coordinator = coordinator
+        self._pig_name = pig_name
+        self._store = store
+        self._attr_unique_id = f"{entry_id}_log_feeding"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            name=pig_name,
+            manufacturer="GlucoFarmer",
+            model="Pig CGM Monitor",
+        )
+
+    async def async_press(self) -> None:
+        """Handle button press - log feeding from input values."""
+        amount = self._coordinator.feeding_amount
+        category = self._coordinator.feeding_category or "other"
+        timestamp = self._coordinator.event_timestamp or None
+
+        await self._store.async_log_feeding(
+            pig_name=self._pig_name,
+            amount=amount,
+            category=category,
+            timestamp=timestamp,
+        )
+        _LOGGER.info(
+            "Logged feeding: %s BE (%s) for %s", amount, category, self._pig_name
+        )
+        await self._coordinator.async_request_refresh()
+
+
+class GlucoFarmerLogInsulinButton(ButtonEntity):
+    """Button that logs an insulin event from current input values."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "log_insulin"
+    _attr_icon = "mdi:needle"
+
+    def __init__(
+        self,
+        coordinator: GlucoFarmerCoordinator,
+        pig_name: str,
+        entry_id: str,
+        store: GlucoFarmerStore,
+    ) -> None:
+        """Initialize the log insulin button."""
+        self._coordinator = coordinator
+        self._pig_name = pig_name
+        self._store = store
+        self._attr_unique_id = f"{entry_id}_log_insulin"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            name=pig_name,
+            manufacturer="GlucoFarmer",
+            model="Pig CGM Monitor",
+        )
+
+    async def async_press(self) -> None:
+        """Handle button press - log insulin from input values."""
+        amount = self._coordinator.insulin_amount
+        product = self._coordinator.insulin_product or ""
+        timestamp = self._coordinator.event_timestamp or None
+
+        await self._store.async_log_insulin(
+            pig_name=self._pig_name,
+            product=product,
+            amount=amount,
+            timestamp=timestamp,
+        )
+        _LOGGER.info(
+            "Logged insulin: %s IU (%s) for %s", amount, product, self._pig_name
+        )
+        await self._coordinator.async_request_refresh()
+
+
+class GlucoFarmerArchiveEventButton(ButtonEntity):
+    """Button that archives an event by ID."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "archive_event"
+    _attr_icon = "mdi:archive-arrow-down"
+
+    def __init__(
+        self,
+        coordinator: GlucoFarmerCoordinator,
+        pig_name: str,
+        entry_id: str,
+        store: GlucoFarmerStore,
+    ) -> None:
+        """Initialize the archive event button."""
+        self._coordinator = coordinator
+        self._pig_name = pig_name
+        self._store = store
+        self._attr_unique_id = f"{entry_id}_archive_event"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            name=pig_name,
+            manufacturer="GlucoFarmer",
+            model="Pig CGM Monitor",
+        )
+
+    async def async_press(self) -> None:
+        """Handle button press - archive the event."""
+        event_id = self._coordinator.archive_event_id
+        if not event_id:
+            _LOGGER.warning("No event ID provided for archiving")
+            return
+
+        deleted = await self._store.async_delete_event(event_id)
+        if deleted:
+            _LOGGER.info("Archived event %s", event_id)
+            self._coordinator.archive_event_id = ""
+            await self._coordinator.async_request_refresh()
+        else:
+            _LOGGER.warning("Event %s not found or already archived", event_id)

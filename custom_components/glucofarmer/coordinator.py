@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -18,6 +19,7 @@ from .const import (
     DEFAULT_DATA_TIMEOUT,
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_LOW_THRESHOLD,
+    DEFAULT_VERY_HIGH_THRESHOLD,
     DOMAIN,
     EVENT_TYPE_FEEDING,
     EVENT_TYPE_INSULIN,
@@ -26,12 +28,14 @@ from .const import (
     STATUS_LOW,
     STATUS_NO_DATA,
     STATUS_NORMAL,
+    STATUS_VERY_HIGH,
 )
 from .store import GlucoFarmerStore
 
 _LOGGER = logging.getLogger(__name__)
 
 _SCAN_INTERVAL = timedelta(seconds=60)
+_READINGS_PER_HOUR = 12  # Dexcom reads every 5 minutes
 
 type GlucoFarmerConfigEntry = ConfigEntry[GlucoFarmerCoordinator]
 
@@ -44,13 +48,17 @@ class GlucoFarmerData:
     glucose_trend: str | None
     glucose_status: str
     reading_age_minutes: float | None
+    # 5-zone time percentages
+    time_critical_low_pct: float
+    time_low_pct: float
     time_in_range_pct: float
-    time_below_range_pct: float
-    time_above_range_pct: float
+    time_high_pct: float
+    time_very_high_pct: float
     data_completeness_pct: float
     daily_insulin_total: float
     daily_bes_total: float
     last_reading_time: datetime | None
+    today_events: list[dict[str, Any]] = field(default_factory=list)
 
 
 class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
@@ -79,7 +87,16 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self.low_threshold: float = DEFAULT_LOW_THRESHOLD
         self.high_threshold: float = DEFAULT_HIGH_THRESHOLD
         self.critical_low_threshold: float = DEFAULT_CRITICAL_LOW_THRESHOLD
+        self.very_high_threshold: float = DEFAULT_VERY_HIGH_THRESHOLD
         self.data_timeout: int = DEFAULT_DATA_TIMEOUT
+
+        # Input state (updated by number/select/text entities, read by button entities)
+        self.feeding_amount: float = 0
+        self.feeding_category: str = ""
+        self.insulin_amount: float = 0
+        self.insulin_product: str = ""
+        self.event_timestamp: str = ""
+        self.archive_event_id: str = ""
 
         # Deduplication: only log genuinely new Dexcom readings
         self._last_tracked_sensor_changed: datetime | None = None
@@ -109,24 +126,35 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         # Persist reading to store (only new Dexcom values, deduplicated)
         await self._track_reading(glucose_value, glucose_status, last_reading_time)
 
-        # Compute daily statistics from persistent store
-        tir, tbr, tar = self._compute_tir()
-        completeness = self._compute_data_completeness()
+        # Get selected time range for zone stats
+        hours = self._get_chart_timerange()
+
+        # Compute 5-zone stats from persistent store
+        zones = self._compute_zone_stats(hours)
+        completeness = self._compute_data_completeness(hours)
+
+        # Daily totals (always from midnight)
         daily_insulin = self._compute_daily_insulin()
         daily_bes = self._compute_daily_bes()
+
+        # Today's events for display
+        today_events = self.store.get_today_events(self.pig_name)
 
         return GlucoFarmerData(
             glucose_value=glucose_value,
             glucose_trend=trend_value,
             glucose_status=glucose_status,
             reading_age_minutes=round(reading_age, 1) if reading_age is not None else None,
-            time_in_range_pct=tir,
-            time_below_range_pct=tbr,
-            time_above_range_pct=tar,
+            time_critical_low_pct=zones[0],
+            time_low_pct=zones[1],
+            time_in_range_pct=zones[2],
+            time_high_pct=zones[3],
+            time_very_high_pct=zones[4],
             data_completeness_pct=completeness,
             daily_insulin_total=daily_insulin,
             daily_bes_total=daily_bes,
             last_reading_time=last_reading_time,
+            today_events=today_events,
         )
 
     def _get_sensor_value(self, entity_id: str) -> float | None:
@@ -154,11 +182,13 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             return STATUS_NO_DATA
         if glucose is None:
             return STATUS_NO_DATA
-        if glucose <= self.critical_low_threshold:
+        if glucose < self.critical_low_threshold:
             return STATUS_CRITICAL_LOW
-        if glucose <= self.low_threshold:
+        if glucose < self.low_threshold:
             return STATUS_LOW
-        if glucose >= self.high_threshold:
+        if glucose > self.very_high_threshold:
+            return STATUS_VERY_HIGH
+        if glucose > self.high_threshold:
             return STATUS_HIGH
         return STATUS_NORMAL
 
@@ -197,44 +227,67 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             timestamp=timestamp,
         )
 
-    def _compute_tir(self) -> tuple[float, float, float]:
-        """Compute time in range, below range, above range from persistent store."""
-        readings = self.store.get_readings_today(self.pig_name)
+    def _get_chart_timerange(self) -> int:
+        """Get selected chart timerange in hours from shared state."""
+        domain_data = self.hass.data.get(DOMAIN, {})
+        timerange_str = domain_data.get("chart_timerange", "24h")
+        try:
+            return int(str(timerange_str).replace("h", ""))
+        except (ValueError, AttributeError):
+            return 24
+
+    def _compute_zone_stats(
+        self, hours: int
+    ) -> tuple[float, float, float, float, float]:
+        """Compute 5-zone time percentages from persistent store.
+
+        Uses actual glucose values with current thresholds for accurate zones.
+        """
+        now = datetime.now()
+        start = (now - timedelta(hours=hours)).isoformat()
+        end = now.isoformat()
+        readings = self.store.get_readings_for_range(self.pig_name, start, end)
         if not readings:
-            return 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         total = len(readings)
+        crit_low = sum(
+            1 for r in readings if r["value"] < self.critical_low_threshold
+        )
+        low = sum(
+            1 for r in readings
+            if self.critical_low_threshold <= r["value"] < self.low_threshold
+        )
         in_range = sum(
-            1 for r in readings if r["status"] == STATUS_NORMAL
+            1 for r in readings
+            if self.low_threshold <= r["value"] <= self.high_threshold
         )
-        below = sum(
-            1
-            for r in readings
-            if r["status"] in (STATUS_LOW, STATUS_CRITICAL_LOW)
+        high = sum(
+            1 for r in readings
+            if self.high_threshold < r["value"] <= self.very_high_threshold
         )
-        above = sum(
-            1 for r in readings if r["status"] == STATUS_HIGH
+        very_high = sum(
+            1 for r in readings if r["value"] > self.very_high_threshold
         )
 
         return (
+            round(crit_low / total * 100, 1),
+            round(low / total * 100, 1),
             round(in_range / total * 100, 1),
-            round(below / total * 100, 1),
-            round(above / total * 100, 1),
+            round(high / total * 100, 1),
+            round(very_high / total * 100, 1),
         )
 
-    def _compute_data_completeness(self) -> float:
-        """Compute data completeness from persistent store.
-
-        Percentage of expected 5-min Dexcom readings actually received today.
-        """
+    def _compute_data_completeness(self, hours: int) -> float:
+        """Compute data completeness as percentage of expected readings."""
         now = datetime.now()
-        minutes_today = now.hour * 60 + now.minute
-        if minutes_today < 5:
+        start = (now - timedelta(hours=hours)).isoformat()
+        end = now.isoformat()
+        actual = len(self.store.get_readings_for_range(self.pig_name, start, end))
+        expected = hours * _READINGS_PER_HOUR
+        if expected <= 0:
             return 100.0
-        # Dexcom delivers a reading every 5 minutes
-        expected_readings = minutes_today / 5
-        actual_readings = len(self.store.get_readings_today(self.pig_name))
-        return round(min(actual_readings / expected_readings * 100, 100.0), 1)
+        return round(min(actual / expected * 100, 100.0), 1)
 
     def _compute_daily_insulin(self) -> float:
         """Compute total insulin IU administered today."""

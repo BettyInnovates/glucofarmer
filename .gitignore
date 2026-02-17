@@ -11,3 +11,5 @@ venv/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+*.iml
+.idea/

@@ -166,15 +166,15 @@ class GlucoFarmerStore:
         return event_id
 
     async def async_delete_event(self, event_id: str) -> bool:
-        """Delete an event by ID. Returns True if found and deleted."""
+        """Archive an event by ID (soft-delete). Returns True if found."""
         if not self._loaded:
             await self.async_load()
 
-        for i, event in enumerate(self._events):
-            if event["id"] == event_id:
-                self._events.pop(i)
+        for event in self._events:
+            if event["id"] == event_id and not event.get("archived"):
+                event["archived"] = True
                 await self._async_save()
-                _LOGGER.debug("Deleted event %s", event_id)
+                _LOGGER.debug("Archived event %s", event_id)
                 return True
         return False
 
@@ -186,7 +186,10 @@ class GlucoFarmerStore:
         since: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Get events for a specific pig, optionally filtered."""
-        result = [e for e in self._events if e["pig_name"] == pig_name]
+        result = [
+            e for e in self._events
+            if e["pig_name"] == pig_name and not e.get("archived")
+        ]
         if event_type is not None:
             result = [e for e in result if e["type"] == event_type]
         if since is not None:

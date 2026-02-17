@@ -26,6 +26,10 @@ from .const import (
     ATTR_PRODUCT,
     ATTR_TIMESTAMP,
     CONF_PIG_NAME,
+    DEFAULT_CRITICAL_LOW_THRESHOLD,
+    DEFAULT_HIGH_THRESHOLD,
+    DEFAULT_LOW_THRESHOLD,
+    DEFAULT_VERY_HIGH_THRESHOLD,
     DOMAIN,
     PLATFORMS,
     SERVICE_DELETE_EVENT,
@@ -36,6 +40,7 @@ from .const import (
     STATUS_LOW,
     STATUS_NO_DATA,
     STATUS_NORMAL,
+    STATUS_VERY_HIGH,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
 from .dashboard import async_update_dashboard
@@ -283,7 +288,7 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
             )
         )
         state["low_notified"] = True
-    elif status == STATUS_HIGH:
+    elif status in (STATUS_HIGH, STATUS_VERY_HIGH):
         # Delay high glucose notification by 5 minutes
         if _high_glucose_since.get(pig_name) is None:
             _high_glucose_since[pig_name] = now
@@ -291,12 +296,14 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
             not state["high_notified"]
             and (now - _high_glucose_since[pig_name]) >= HIGH_GLUCOSE_DELAY
         ):
+            severity = "very high" if status == STATUS_VERY_HIGH else "high"
+            priority = "critical" if status == STATUS_VERY_HIGH else "high"
             hass.async_create_task(
                 _send_notification(
                     hass,
-                    title=f"Warning: {pig_name} glucose high",
-                    message=f"{pig_name} glucose is {glucose} mg/dL - above threshold",
-                    priority="high",
+                    title=f"Warning: {pig_name} glucose {severity}",
+                    message=f"{pig_name} glucose is {glucose} mg/dL - {severity}!",
+                    priority=priority,
                 )
             )
             state["high_notified"] = True
@@ -424,18 +431,48 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             lines.append("")
             continue
 
-        # Compute TIR/TBR/TAR from stored readings
-        total = len(readings)
-        in_range = sum(1 for r in readings if r["status"] == STATUS_NORMAL)
-        below = sum(
-            1 for r in readings
-            if r["status"] in (STATUS_LOW, STATUS_CRITICAL_LOW)
+        # Get thresholds from coordinator (if running) or use defaults
+        coordinator: GlucoFarmerCoordinator | None = getattr(
+            entry, "runtime_data", None
         )
-        above = sum(1 for r in readings if r["status"] == STATUS_HIGH)
+        if coordinator is not None:
+            crit_low = coordinator.critical_low_threshold
+            low = coordinator.low_threshold
+            high = coordinator.high_threshold
+            very_high = coordinator.very_high_threshold
+        else:
+            crit_low = DEFAULT_CRITICAL_LOW_THRESHOLD
+            low = DEFAULT_LOW_THRESHOLD
+            high = DEFAULT_HIGH_THRESHOLD
+            very_high = DEFAULT_VERY_HIGH_THRESHOLD
 
-        tir = round(in_range / total * 100, 1)
-        tbr = round(below / total * 100, 1)
-        tar = round(above / total * 100, 1)
+        # Compute 5-zone stats from stored reading values
+        total = len(readings)
+        n_critical_low = 0
+        n_low = 0
+        n_in_range = 0
+        n_high = 0
+        n_very_high = 0
+        for r in readings:
+            val = r.get("value")
+            if val is None:
+                continue
+            if val < crit_low:
+                n_critical_low += 1
+            elif val < low:
+                n_low += 1
+            elif val <= high:
+                n_in_range += 1
+            elif val <= very_high:
+                n_high += 1
+            else:
+                n_very_high += 1
+
+        pct_crit_low = round(n_critical_low / total * 100, 1)
+        pct_low = round(n_low / total * 100, 1)
+        pct_in_range = round(n_in_range / total * 100, 1)
+        pct_high = round(n_high / total * 100, 1)
+        pct_very_high = round(n_very_high / total * 100, 1)
 
         # Data completeness: 288 expected readings per day (24h * 60min / 5min)
         expected_readings = 288
@@ -446,9 +483,6 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         bes_total = sum(e.get("amount", 0) for e in feeding_events)
 
         # Current state (if coordinator is available)
-        coordinator: GlucoFarmerCoordinator | None = getattr(
-            entry, "runtime_data", None
-        )
         current_glucose = "N/A"
         current_trend = "N/A"
         current_status = "N/A"
@@ -461,11 +495,15 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             f"--- {pig_name} ---",
             f"  Current glucose: {current_glucose} mg/dL ({current_trend})",
             f"  Current status: {current_status}",
+            f"  Thresholds: <{crit_low} critical | <{low} low | "
+            f"{low}-{high} target | >{high} high | >{very_high} very high",
             f"  --- Yesterday ({yesterday}) ---",
             f"  Readings recorded: {total}",
-            f"  Time in range: {tir}%",
-            f"  Time below range: {tbr}%",
-            f"  Time above range: {tar}%",
+            f"  Critical low (<{crit_low}): {pct_crit_low}%",
+            f"  Low ({crit_low}-{low}): {pct_low}%",
+            f"  In range ({low}-{high}): {pct_in_range}%",
+            f"  High ({high}-{very_high}): {pct_high}%",
+            f"  Very high (>{very_high}): {pct_very_high}%",
             f"  Data completeness: {completeness}%",
             f"  Total insulin: {insulin_total} IU",
             f"  Total feeding: {bes_total} BE",

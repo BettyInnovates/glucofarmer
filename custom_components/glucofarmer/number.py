@@ -1,4 +1,4 @@
-"""Number platform for GlucoFarmer thresholds."""
+"""Number platform for GlucoFarmer thresholds and input amounts."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_DATA_TIMEOUT,
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_LOW_THRESHOLD,
+    DEFAULT_VERY_HIGH_THRESHOLD,
     DOMAIN,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
@@ -42,8 +43,20 @@ def _set_critical_low(coordinator: GlucoFarmerCoordinator, value: float) -> None
     coordinator.critical_low_threshold = value
 
 
+def _set_very_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
+    coordinator.very_high_threshold = value
+
+
 def _set_data_timeout(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.data_timeout = int(value)
+
+
+def _set_feeding_amount(coordinator: GlucoFarmerCoordinator, value: float) -> None:
+    coordinator.feeding_amount = value
+
+
+def _set_insulin_amount(coordinator: GlucoFarmerCoordinator, value: float) -> None:
+    coordinator.insulin_amount = value
 
 
 NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
@@ -84,6 +97,18 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         setter_fn=_set_critical_low,
     ),
     GlucoFarmerNumberEntityDescription(
+        key="very_high_threshold",
+        translation_key="very_high_threshold",
+        native_unit_of_measurement="mg/dL",
+        native_min_value=200,
+        native_max_value=400,
+        native_step=1,
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+        default_value=DEFAULT_VERY_HIGH_THRESHOLD,
+        setter_fn=_set_very_high,
+    ),
+    GlucoFarmerNumberEntityDescription(
         key="data_timeout",
         translation_key="data_timeout",
         native_unit_of_measurement=UnitOfTime.MINUTES,
@@ -94,6 +119,28 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         default_value=DEFAULT_DATA_TIMEOUT,
         setter_fn=_set_data_timeout,
+    ),
+    GlucoFarmerNumberEntityDescription(
+        key="feeding_amount",
+        translation_key="feeding_amount",
+        native_unit_of_measurement="BE",
+        native_min_value=0,
+        native_max_value=50,
+        native_step=1,
+        mode=NumberMode.BOX,
+        default_value=0,
+        setter_fn=_set_feeding_amount,
+    ),
+    GlucoFarmerNumberEntityDescription(
+        key="insulin_amount",
+        translation_key="insulin_amount",
+        native_unit_of_measurement="IU",
+        native_min_value=0,
+        native_max_value=100,
+        native_step=1,
+        mode=NumberMode.BOX,
+        default_value=0,
+        setter_fn=_set_insulin_amount,
     ),
 )
 

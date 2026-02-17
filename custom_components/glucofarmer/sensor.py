@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -25,6 +26,7 @@ from .const import (
     STATUS_LOW,
     STATUS_NO_DATA,
     STATUS_NORMAL,
+    STATUS_VERY_HIGH,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator, GlucoFarmerData
 
@@ -68,6 +70,7 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
             STATUS_NORMAL,
             STATUS_LOW,
             STATUS_HIGH,
+            STATUS_VERY_HIGH,
             STATUS_CRITICAL_LOW,
             STATUS_NO_DATA,
         ],
@@ -80,26 +83,41 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.reading_age_minutes,
     ),
+    # 5-zone time percentages
     GlucoFarmerSensorEntityDescription(
-        key="time_in_range_today",
-        translation_key="time_in_range_today",
+        key="time_critical_low_pct",
+        translation_key="time_critical_low_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.time_critical_low_pct,
+    ),
+    GlucoFarmerSensorEntityDescription(
+        key="time_low_pct",
+        translation_key="time_low_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.time_low_pct,
+    ),
+    GlucoFarmerSensorEntityDescription(
+        key="time_in_range_pct",
+        translation_key="time_in_range_pct",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.time_in_range_pct,
     ),
     GlucoFarmerSensorEntityDescription(
-        key="time_below_range_today",
-        translation_key="time_below_range_today",
+        key="time_high_pct",
+        translation_key="time_high_pct",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.time_below_range_pct,
+        value_fn=lambda data: data.time_high_pct,
     ),
     GlucoFarmerSensorEntityDescription(
-        key="time_above_range_today",
-        translation_key="time_above_range_today",
+        key="time_very_high_pct",
+        translation_key="time_very_high_pct",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.time_above_range_pct,
+        value_fn=lambda data: data.time_very_high_pct,
     ),
     GlucoFarmerSensorEntityDescription(
         key="data_completeness_today",
@@ -134,10 +152,15 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     pig_name = entry.data[CONF_PIG_NAME]
 
-    async_add_entities(
+    entities: list[SensorEntity] = [
         GlucoFarmerSensorEntity(coordinator, description, pig_name, entry.entry_id)
         for description in SENSOR_DESCRIPTIONS
+    ]
+    # Add special events sensor
+    entities.append(
+        GlucoFarmerEventsSensor(coordinator, pig_name, entry.entry_id)
     )
+    async_add_entities(entities)
 
 
 class GlucoFarmerSensorEntity(
@@ -172,3 +195,42 @@ class GlucoFarmerSensorEntity(
         if self.coordinator.data is None:
             return None
         return self.entity_description.value_fn(self.coordinator.data)
+
+
+class GlucoFarmerEventsSensor(
+    CoordinatorEntity[GlucoFarmerCoordinator], SensorEntity
+):
+    """Sensor that exposes today's events as attributes for dashboard display."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "today_events"
+
+    def __init__(
+        self,
+        coordinator: GlucoFarmerCoordinator,
+        pig_name: str,
+        entry_id: str,
+    ) -> None:
+        """Initialize the events sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry_id}_today_events"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            name=pig_name,
+            manufacturer="GlucoFarmer",
+            model="Pig CGM Monitor",
+        )
+
+    @property
+    def native_value(self) -> int:
+        """Return count of today's events."""
+        if self.coordinator.data is None:
+            return 0
+        return len(self.coordinator.data.today_events)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return today's events as attributes."""
+        if self.coordinator.data is None:
+            return {"events": []}
+        return {"events": self.coordinator.data.today_events}
