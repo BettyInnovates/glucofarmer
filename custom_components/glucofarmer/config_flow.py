@@ -15,6 +15,14 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    TextSelector,
+)
 
 from .const import (
     CONF_FEEDING_CATEGORIES,
@@ -311,22 +319,35 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
             CONF_FEEDING_CATEGORIES, DEFAULT_FEEDING_CATEGORIES
         )
 
-        product_names = {p["name"]: p["name"] for p in products}
-        cat_options = {c: c for c in categories}
+        product_names = [p["name"] for p in products]
+        cat_options = list(categories)
+
+        schema_dict: dict = {
+            vol.Required("name"): TextSelector(),
+            vol.Required("type"): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        {"value": "insulin", "label": "Insulin"},
+                        {"value": "feeding", "label": "Feeding"},
+                    ]
+                )
+            ),
+            vol.Required("amount", default=1.0): NumberSelector(
+                NumberSelectorConfig(min=0, step=0.5, mode=NumberSelectorMode.BOX)
+            ),
+        }
+        if product_names:
+            schema_dict[vol.Optional("product")] = SelectSelector(
+                SelectSelectorConfig(options=product_names)
+            )
+        if cat_options:
+            schema_dict[vol.Optional("feeding_category")] = SelectSelector(
+                SelectSelectorConfig(options=cat_options)
+            )
 
         return self.async_show_form(
             step_id="add_preset",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("name"): str,
-                    vol.Required("type"): vol.In(
-                        {"insulin": "Insulin", "feeding": "Feeding"}
-                    ),
-                    vol.Optional("product"): vol.In(product_names),
-                    vol.Optional("feeding_category"): vol.In(cat_options),
-                    vol.Required("amount", default=1.0): vol.Coerce(float),
-                }
-            ),
+            data_schema=vol.Schema(schema_dict),
         )
 
     async def async_step_remove_preset(

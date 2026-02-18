@@ -1,5 +1,16 @@
 # GlucoFarmer Changelog
 
+## v1.3.8 (18.02.2026)
+Fix #8: Preset-Formular im Config Flow richtig rendern:
+- **config_flow.py**: async_step_add_preset verwendet jetzt HA-Selector-Objekte
+  statt roher vol.In() / str / vol.Coerce(float). TextSelector fuer Name,
+  SelectSelector fuer Type (Insulin/Feeding) und optionale Produkt/Kategorie-
+  Felder, NumberSelector (BOX-Modus, step=0.5) fuer Menge.
+- Optionale Felder (product, feeding_category) werden nur in das Schema
+  aufgenommen wenn tatsaechlich Optionen vorhanden sind -- leere vol.In({})
+  konnten das gesamte Formular-Rendering zerschiessen.
+- Selektoren erfordern keine strings.json-Aenderungen: data-Keys bleiben gleich.
+
 ## v1.3.7 (18.02.2026)
 Fix #7: _last_valid_reading_time nach HA-Neustart wiederherstellen:
 - **coordinator.py**: Neue Methode `_restore_last_reading_time()` laedt beim
