@@ -120,7 +120,7 @@ class GlucoFarmerPresetButton(ButtonEntity):
                 self._pig_name,
             )
 
-        await self._coordinator.async_request_refresh()
+        await self._coordinator.async_refresh()
 
 
 class GlucoFarmerLogFeedingButton(ButtonEntity):
@@ -165,7 +165,7 @@ class GlucoFarmerLogFeedingButton(ButtonEntity):
         _LOGGER.info(
             "Logged feeding: %s BE (%s) for %s", amount, category, self._pig_name
         )
-        await self._coordinator.async_request_refresh()
+        await self._coordinator.async_refresh()
 
 
 class GlucoFarmerLogInsulinButton(ButtonEntity):
@@ -210,7 +210,7 @@ class GlucoFarmerLogInsulinButton(ButtonEntity):
         _LOGGER.info(
             "Logged insulin: %s IU (%s) for %s", amount, product, self._pig_name
         )
-        await self._coordinator.async_request_refresh()
+        await self._coordinator.async_refresh()
 
 
 class GlucoFarmerArchiveEventButton(ButtonEntity):
@@ -251,6 +251,6 @@ class GlucoFarmerArchiveEventButton(ButtonEntity):
         if deleted:
             _LOGGER.info("Archived event %s", event_id)
             self._coordinator.archive_event_id = ""
-            await self._coordinator.async_request_refresh()
+            await self._coordinator.async_refresh()
         else:
             _LOGGER.warning("Event %s not found or already archived", event_id)

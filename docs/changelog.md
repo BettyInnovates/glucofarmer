@@ -1,5 +1,15 @@
 # GlucoFarmer Changelog
 
+## v1.3.9 (18.02.2026)
+Fix #9: BE/Insulin-Summe aktualisiert sich sofort nach Logging:
+- **button.py**: alle async_press()-Methoden nutzen jetzt async_refresh()
+  statt async_request_refresh(). async_request_refresh() ist debounced und
+  kann verzoegert/geskippt werden wenn kurz zuvor der Dexcom-Listener schon
+  einen Refresh ausgeloest hat. async_refresh() laeuft sofort und blockiert
+  bis der Coordinator fertig ist -- CoordinatorEntity-Sensoren schreiben
+  danach automatisch async_write_ha_state(). Betrifft alle 4 Buttons:
+  PresetButton, LogFeeding, LogInsulin, ArchiveEvent.
+
 ## v1.3.8 (18.02.2026)
 Fix #8: Preset-Formular im Config Flow richtig rendern:
 - **config_flow.py**: async_step_add_preset verwendet jetzt HA-Selector-Objekte
