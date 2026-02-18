@@ -100,6 +100,8 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
 
         # Deduplication: only log genuinely new Dexcom readings
         self._last_tracked_sensor_changed: datetime | None = None
+        # Last time we had a valid glucose reading (used for age when sensor goes unavailable)
+        self._last_valid_reading_time: datetime | None = None
 
     async def _async_update_data(self) -> GlucoFarmerData:
         """Fetch data from Dexcom sensors and compute stats."""
@@ -119,6 +121,14 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
                 datetime.now(tz=last_changed.tzinfo) - last_changed
             ).total_seconds() / 60.0
             last_reading_time = last_changed
+            self._last_valid_reading_time = last_changed
+        elif self._last_valid_reading_time is not None:
+            # Sensor unavailable -- compute age from last known good reading
+            reading_age = (
+                datetime.now(tz=self._last_valid_reading_time.tzinfo)
+                - self._last_valid_reading_time
+            ).total_seconds() / 60.0
+            last_reading_time = self._last_valid_reading_time
 
         # Determine glucose status
         glucose_status = self._compute_status(glucose_value, reading_age)

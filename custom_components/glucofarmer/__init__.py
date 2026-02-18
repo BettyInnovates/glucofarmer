@@ -14,7 +14,8 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
+from homeassistant.helpers.event import async_track_point_in_time, async_track_state_change_event
+import homeassistant.util.dt as dt_util
 
 from .const import (
     ATTR_AMOUNT,
@@ -133,18 +134,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
     )
     entry.async_on_unload(unsub)
 
-    # Set up daily email report (once, at midnight)
+    # Set up daily report (once per DOMAIN, fires at 00:05 each day)
     if "daily_report_unsub" not in hass.data[DOMAIN]:
-        async def _daily_report_callback(_now: Any) -> None:
-            await _send_daily_report(hass)
-
-        unsub_daily = async_track_time_interval(
-            hass,
-            _daily_report_callback,
-            timedelta(minutes=1),
-        )
-        hass.data[DOMAIN]["daily_report_unsub"] = unsub_daily
         hass.data[DOMAIN]["last_report_date"] = ""
+        _schedule_daily_report(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -319,7 +312,7 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
             state["high_notified"] = True
     elif status == STATUS_NO_DATA and not state["no_data_notified"]:
         age = coordinator.data.reading_age_minutes
-        age_text = f"{age} minutes" if age is not None else "an unknown duration"
+        age_text = f"{round(age)} min" if age is not None else "unknown duration"
         hass.async_create_task(
             _send_notification(
                 hass,
@@ -383,6 +376,28 @@ async def _send_notification(
         _LOGGER.debug("Notify service not available, using persistent notification only")
 
 
+@callback
+def _schedule_daily_report(hass: HomeAssistant) -> None:
+    """Schedule next daily report at 00:05, reschedules itself after firing."""
+    now = dt_util.now()
+    next_run = now.replace(hour=0, minute=5, second=0, microsecond=0)
+    if next_run <= now:
+        next_run += timedelta(days=1)
+
+    @callback
+    def _fire(_now: Any) -> None:
+        hass.async_create_task(_send_daily_report(hass))
+        _schedule_daily_report(hass)
+
+    if "daily_report_unsub" in hass.data.get(DOMAIN, {}):
+        hass.data[DOMAIN]["daily_report_unsub"]()
+
+    hass.data[DOMAIN]["daily_report_unsub"] = async_track_point_in_time(
+        hass, _fire, next_run
+    )
+    _LOGGER.debug("Daily report scheduled for %s", next_run.isoformat())
+
+
 async def _send_daily_report(hass: HomeAssistant) -> None:
     """Send daily report for the previous day.
 
@@ -397,10 +412,8 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
     if domain_data is None:
         return
 
-    # Only send once per day, around midnight (00:00-00:01)
+    # Safety check: only send once per day
     if domain_data.get("last_report_date") == today_str:
-        return
-    if now.hour != 0 or now.minute > 1:
         return
 
     domain_data["last_report_date"] = today_str

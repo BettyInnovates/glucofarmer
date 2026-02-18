@@ -21,14 +21,22 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 ## Aktueller Stand
 
 **Version**: v1.3.1 (Dexcom State-Listener + 5min Safety-Polling)
-**Deployed**: v1.3.0
-**Offen**: v1.3.1 implementiert, bereit zum Testen/Committen
+**Deployed**: v1.3.1 (getestet, funktioniert)
+**Naechster Schritt**: Issue #3 – Statistik Seite 3: Zeitraum-Wechsel ohne Effekt
 
-### Letzte Aenderung (v1.3.1)
-- `coordinator.py`: `_SCAN_INTERVAL` 60s → 5min (Safety-Polling)
-- `__init__.py`: State-Listener auf Dexcom-Glukose-Sensor via `async_track_state_change_event`
-  → sofortiger `coordinator.async_request_refresh()` bei jedem neuen Dexcom-Wert
-  → Listener wird sauber per `entry.async_on_unload` abgemeldet
+### Offene Issues (Reihenfolge = Prioritaet)
+1. ~~Tages-Zusammenfassung kommt nicht~~ -- FIXED (v1.3.2)
+2. ~~Notification Datenverlust: Zeitangabe "unknown"~~ -- FIXED (v1.3.2)
+3. Statistik Seite 3: Zeitraum-Wechsel ohne Effekt
+4. Datenvollstaendigkeit falsch berechnet
+5. Presets: Text unsichtbar + Logik kaputt
+6. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten
+7. Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)
+8. Seite 3: Stacked Balkendiagramm Zonen
+9. Seite 1: Ampel-System alle Schweine
+10. Seite 1: Pig-Selektor ein/ausblenden
+11. Fehlende Zeitstempel zaehlen (x von y missed)
+-- Details in docs/pending.md --
 
 ## Bekannte Einschraenkungen / TODOs
 
