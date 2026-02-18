@@ -34,7 +34,7 @@ from .store import GlucoFarmerStore
 
 _LOGGER = logging.getLogger(__name__)
 
-_SCAN_INTERVAL = timedelta(seconds=60)
+_SCAN_INTERVAL = timedelta(minutes=5)
 _READINGS_PER_HOUR = 12  # Dexcom reads every 5 minutes
 
 type GlucoFarmerConfigEntry = ConfigEntry[GlucoFarmerCoordinator]

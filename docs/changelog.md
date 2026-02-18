@@ -1,5 +1,19 @@
 # GlucoFarmer Changelog
 
+## v1.3.1 (18.02.2026)
+Dexcom State-Listener fuer minimale Latenz:
+- **State-Listener statt reinem Polling** -- `__init__.py` registriert via
+  `async_track_state_change_event` einen Listener auf den Dexcom-Glukose-Sensor.
+  Bei jedem neuen Dexcom-Wert wird sofort `coordinator.async_request_refresh()`
+  ausgeloest -- keine Wartezeit bis zum naechsten Poll-Tick.
+- **Safety-Polling 5min** -- `coordinator.py` `_SCAN_INTERVAL` von 60s auf 5min
+  erhoeht. Dient nur als Fallback falls der Listener einen State-Change verpassen
+  sollte. Da Dexcom-Readings alle 5min kommen, wird so kein Wert verpasst.
+- **Kein doppeltes Speichern** -- `_track_reading` dedupliziert via `last_changed`
+  Timestamp; ein zweiter Refresh auf denselben Wert ist harmlos.
+- **Listener-Cleanup** -- `entry.async_on_unload(unsub_dexcom)` stellt sicher,
+  dass der Listener beim Entladen des Entries sauber abgemeldet wird.
+
 ## v1.3.0 (17.02.2026)
 5-Zonen-System, Inline-Eingabe, variable Chart-Zeitraeume:
 - **5-Zonen-Glucose-System** -- Altes 3-Zonen-Modell (TIR/TBR/TAR) ersetzt durch 5 Zonen:

@@ -11,17 +11,24 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Dokumentation
 
-| Datei | Inhalt |
-|-------|--------|
-| [docs/architecture.md](docs/architecture.md) | Dateien, Entities, Datenfluss, Konzepte, Services, Alarme |
-| [docs/changelog.md](docs/changelog.md) | Versionshistorie (v1.0.0 bis aktuell) |
-| [docs/ha-internals.md](docs/ha-internals.md) | HA-spezifische API-Patterns (LovelaceData etc.) |
+| Datei | Inhalt | Update-Strategie |
+|-------|--------|-----------------|
+| [docs/architecture.md](docs/architecture.md) | Dateien, Entities, Datenfluss, Konzepte, Services, Alarme | Nur bei strukturellen Aenderungen |
+| [docs/changelog.md](docs/changelog.md) | Versionshistorie (v1.0.0 bis aktuell) | Immer sofort |
+| [docs/ha-internals.md](docs/ha-internals.md) | HA-spezifische API-Patterns (LovelaceData etc.) | Aus pending.md einarbeiten |
+| [docs/pending.md](docs/pending.md) | Gesammelte Aenderungen fuer arch/internals (wird geleert nach Einarbeitung) | Nach jeder Aenderung |
 
 ## Aktueller Stand
 
-**Version**: v1.3.0 (5-Zonen, Inline-Eingabe, variable Charts)
-**Deployed**: v1.2.1
-**Offen**: v1.3.0 ist fertig eingearbeitet, noch nicht committed/gepusht
+**Version**: v1.3.1 (Dexcom State-Listener + 5min Safety-Polling)
+**Deployed**: v1.3.0
+**Offen**: v1.3.1 implementiert, bereit zum Testen/Committen
+
+### Letzte Aenderung (v1.3.1)
+- `coordinator.py`: `_SCAN_INTERVAL` 60s → 5min (Safety-Polling)
+- `__init__.py`: State-Listener auf Dexcom-Glukose-Sensor via `async_track_state_change_event`
+  → sofortiger `coordinator.async_request_refresh()` bei jedem neuen Dexcom-Wert
+  → Listener wird sauber per `entry.async_on_unload` abgemeldet
 
 ## Bekannte Einschraenkungen / TODOs
 

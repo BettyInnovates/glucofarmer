@@ -14,7 +14,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 
 from .const import (
     ATTR_AMOUNT,
@@ -103,6 +103,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
     coordinator = GlucoFarmerCoordinator(hass, entry, store)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+
+    # Listen for Dexcom sensor state changes for immediate refresh
+    @callback
+    def _handle_dexcom_update(_event: Any) -> None:
+        hass.async_create_task(coordinator.async_request_refresh())
+
+    unsub_dexcom = async_track_state_change_event(
+        hass, [coordinator.glucose_sensor_id], _handle_dexcom_update
+    )
+    entry.async_on_unload(unsub_dexcom)
 
     # Register services (once)
     if not hass.services.has_service(DOMAIN, SERVICE_LOG_INSULIN):
