@@ -64,8 +64,8 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         key="low_threshold",
         translation_key="low_threshold",
         native_unit_of_measurement="mg/dL",
-        native_min_value=40,
-        native_max_value=100,
+        native_min_value=20,
+        native_max_value=500,
         native_step=1,
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
@@ -76,8 +76,8 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         key="high_threshold",
         translation_key="high_threshold",
         native_unit_of_measurement="mg/dL",
-        native_min_value=120,
-        native_max_value=300,
+        native_min_value=20,
+        native_max_value=500,
         native_step=1,
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
@@ -89,7 +89,7 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         translation_key="critical_low_threshold",
         native_unit_of_measurement="mg/dL",
         native_min_value=20,
-        native_max_value=70,
+        native_max_value=500,
         native_step=1,
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
@@ -100,8 +100,8 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         key="very_high_threshold",
         translation_key="very_high_threshold",
         native_unit_of_measurement="mg/dL",
-        native_min_value=200,
-        native_max_value=400,
+        native_min_value=20,
+        native_max_value=500,
         native_step=1,
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
@@ -191,3 +191,5 @@ class GlucoFarmerNumberEntity(NumberEntity):
         self._attr_native_value = value
         self.entity_description.setter_fn(self._coordinator, value)
         self.async_write_ha_state()
+        if self.entity_description.entity_category == EntityCategory.CONFIG:
+            await self._coordinator.async_request_refresh()

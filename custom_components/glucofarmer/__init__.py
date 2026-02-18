@@ -155,8 +155,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
 async def _async_options_updated(
     hass: HomeAssistant, entry: GlucoFarmerConfigEntry
 ) -> None:
-    """Handle options update -- regenerate dashboard with new presets."""
-    await async_update_dashboard(hass)
+    """Handle options update -- reload entry so new preset entities are created."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) -> bool:

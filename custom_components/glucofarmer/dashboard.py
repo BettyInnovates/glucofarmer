@@ -173,7 +173,7 @@ def _build_overview_view(
                 },
             })
 
-        # Info: Glucose, Trend, Sync (no Status)
+        # Info: Glucose, Trend, Sync + range completeness
         status_entities = []
         for key, label in [
             ("glucose_value", "Glucose"),
@@ -187,6 +187,24 @@ def _build_overview_view(
             row_cards.append({
                 "type": "entities",
                 "entities": status_entities,
+            })
+
+        # Range completeness card with missed count
+        comp_range_entity = ents.get("data_completeness_range")
+        if comp_range_entity:
+            pig_cards.append({
+                "type": "markdown",
+                "content": (
+                    f"{{% set missed = state_attr('{comp_range_entity}', 'missed') %}}"
+                    f"{{% set actual = state_attr('{comp_range_entity}', 'actual') %}}"
+                    f"{{% set expected = state_attr('{comp_range_entity}', 'expected') %}}"
+                    f"{{% set pct = states('{comp_range_entity}') %}}"
+                    "Zeitraum: {{ actual }}/{{ expected }} Messungen"
+                    "{% if missed and missed > 0 %}"
+                    " — **{{ missed }} verpasst**"
+                    "{% endif %}"
+                    " ({{ pct }}%)"
+                ),
             })
 
         if row_cards:
@@ -259,16 +277,12 @@ def _build_input_view(
 
             button_cards = []
             for key in preset_keys:
-                name = key.replace("preset_", "").replace("_", " ").title()
-                is_insulin = "insulin" in key or "rapid" in key or "lantus" in key
-                icon = "mdi:needle" if is_insulin else "mdi:food-apple"
                 button_cards.append({
                     "type": "button",
                     "entity": ents[key],
-                    "name": name,
-                    "icon": icon,
                     "tap_action": {"action": "toggle"},
                     "show_state": False,
+                    "show_name": True,
                 })
 
             for i in range(0, len(button_cards), 3):
@@ -400,32 +414,60 @@ def _build_stats_view(
         ]
 
         # 5-zone distribution as text + details
+        crit_low_ent = ents.get("critical_low_threshold", "")
+        low_ent = ents.get("low_threshold", "")
+        high_ent = ents.get("high_threshold", "")
+        very_high_ent = ents.get("very_high_threshold", "")
+
+        def _threshold(entity_id: str) -> str:
+            return f"{{{{ states('{entity_id}') | int }}}}"
+
         zone_parts = []
-        for key, emoji, label in [
-            ("time_very_high_pct", "\U0001f534", "Sehr hoch"),
-            ("time_high_pct", "\U0001f7e0", "Hoch"),
-            ("time_in_range_pct", "\U0001f7e2", "Zielbereich"),
-            ("time_low_pct", "\U0001f7e1", "Niedrig"),
-            ("time_critical_low_pct", "\U0001f534", "Sehr niedrig"),
+        for key, emoji, label, boundary in [
+            ("time_very_high_pct", "\U0001f534", "Sehr hoch",
+             f"> {_threshold(very_high_ent)} mg/dL"),
+            ("time_high_pct", "\U0001f7e0", "Hoch",
+             f"{_threshold(high_ent)}-{_threshold(very_high_ent)} mg/dL"),
+            ("time_in_range_pct", "\U0001f7e2", "Zielbereich",
+             f"{_threshold(low_ent)}-{_threshold(high_ent)} mg/dL"),
+            ("time_low_pct", "\U0001f7e1", "Niedrig",
+             f"{_threshold(crit_low_ent)}-{_threshold(low_ent)} mg/dL"),
+            ("time_critical_low_pct", "\U0001f534", "Sehr niedrig",
+             f"< {_threshold(crit_low_ent)} mg/dL"),
         ]:
             if key in ents:
                 zone_parts.append(
-                    f"{emoji} {{{{ states('{ents[key]}') }}}}% {label}"
+                    f"{emoji} {{{{ states('{ents[key]}') }}}}% {label} ({boundary})"
                 )
 
         if zone_parts:
-            zone_md = "### Zonen-Verteilung\n\n" + "\n\n".join(zone_parts)
+            zone_md = "### Zeit im Zielbereich\n\n" + "\n\n".join(zone_parts)
             detail_entities = []
             for key, label in [
-                ("data_completeness_today", "Datenvollstaendigkeit"),
                 ("daily_insulin_total", "Insulin gesamt"),
                 ("daily_bes_total", "Fuetterung gesamt"),
             ]:
                 if key in ents:
                     detail_entities.append({"entity": ents[key], "name": label})
 
+            # Today completeness with missed count
+            comp_today_entity = ents.get("data_completeness_today")
+            comp_today_md = ""
+            if comp_today_entity:
+                comp_today_md = (
+                    f"{{% set missed = state_attr('{comp_today_entity}', 'missed') %}}"
+                    f"{{% set actual = state_attr('{comp_today_entity}', 'actual') %}}"
+                    f"{{% set expected = state_attr('{comp_today_entity}', 'expected') %}}"
+                    f"{{% set pct = states('{comp_today_entity}') %}}"
+                    "\n\n**Heute (seit 0:00):** {{ actual }}/{{ expected }} Messungen"
+                    "{% if missed and missed > 0 %}"
+                    " — **{{ missed }} verpasst**"
+                    "{% endif %}"
+                    " ({{ pct }}%)"
+                )
+
             row_cards: list[dict[str, Any]] = [
-                {"type": "markdown", "content": zone_md},
+                {"type": "markdown", "content": zone_md + comp_today_md},
             ]
             if detail_entities:
                 row_cards.append({

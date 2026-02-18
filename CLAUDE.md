@@ -22,20 +22,22 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 **Version**: v1.3.1 (Dexcom State-Listener + 5min Safety-Polling)
 **Deployed**: v1.3.1 (getestet, funktioniert)
-**Naechster Schritt**: Issue #4 – Datenvollstaendigkeit falsch berechnet
+**Naechster Schritt**: Issue #6 – Seite 2 komplett ueberarbeiten
 
 ### Offene Issues (Reihenfolge = Prioritaet)
 1. ~~Tages-Zusammenfassung kommt nicht~~ -- FIXED (v1.3.2)
 2. ~~Notification Datenverlust: Zeitangabe "unknown"~~ -- FIXED (v1.3.2)
 3. ~~Statistik Seite 3: Zeitraum-Wechsel ohne Effekt~~ -- FIXED (v1.3.3)
-4. Datenvollstaendigkeit falsch berechnet
-5. Presets: Text unsichtbar + Logik kaputt
+4. ~~Datenvollstaendigkeit falsch berechnet~~ -- FIXED (v1.3.4)
+5. ~~Presets: Text unsichtbar + Logik kaputt~~ -- FIXED (v1.3.5)
 6. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten
 7. Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)
 8. Seite 3: Stacked Balkendiagramm Zonen
 9. Seite 1: Ampel-System alle Schweine
 10. Seite 1: Pig-Selektor ein/ausblenden
 11. Fehlende Zeitstempel zaehlen (x von y missed)
+V. Sync-Anzeige Echtzeit (dashboard template, kein Coordinator-Change)
+W. Dexcom Share Delay ~12min → no_data Alarm default_timeout ueberdenken
 -- Details in docs/pending.md --
 
 ## Bekannte Einschraenkungen / TODOs

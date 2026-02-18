@@ -54,7 +54,12 @@ class GlucoFarmerData:
     time_in_range_pct: float
     time_high_pct: float
     time_very_high_pct: float
-    data_completeness_pct: float
+    data_completeness_pct: float       # since midnight (today)
+    data_completeness_range_pct: float  # for selected chart timerange
+    readings_today_actual: int
+    readings_today_expected: int
+    readings_range_actual: int
+    readings_range_expected: int
     daily_insulin_total: float
     daily_bes_total: float
     last_reading_time: datetime | None
@@ -141,7 +146,8 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
 
         # Compute 5-zone stats from persistent store
         zones = self._compute_zone_stats(hours)
-        completeness = self._compute_data_completeness(hours)
+        completeness_today_pct, today_actual, today_expected = self._compute_data_completeness_today()
+        completeness_range_pct, range_actual, range_expected = self._compute_data_completeness_range(hours)
 
         # Daily totals (always from midnight)
         daily_insulin = self._compute_daily_insulin()
@@ -160,7 +166,12 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             time_in_range_pct=zones[2],
             time_high_pct=zones[3],
             time_very_high_pct=zones[4],
-            data_completeness_pct=completeness,
+            data_completeness_pct=completeness_today_pct,
+            data_completeness_range_pct=completeness_range_pct,
+            readings_today_actual=today_actual,
+            readings_today_expected=today_expected,
+            readings_range_actual=range_actual,
+            readings_range_expected=range_expected,
             daily_insulin_total=daily_insulin,
             daily_bes_total=daily_bes,
             last_reading_time=last_reading_time,
@@ -288,16 +299,27 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             round(very_high / total * 100, 1),
         )
 
-    def _compute_data_completeness(self, hours: int) -> float:
-        """Compute data completeness as percentage of expected readings."""
+    def _compute_data_completeness_today(self) -> tuple[float, int, int]:
+        """Compute data completeness since local midnight. Returns (pct, actual, expected)."""
+        now = datetime.now()
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        minutes_since_midnight = (now - midnight).total_seconds() / 60.0
+        expected = max(1, round(minutes_since_midnight / 5))
+        actual = len(self.store.get_readings_today(self.pig_name))
+        pct = round(min(actual / expected * 100, 100.0), 1)
+        return pct, actual, expected
+
+    def _compute_data_completeness_range(self, hours: int) -> tuple[float, int, int]:
+        """Compute data completeness for selected chart timerange. Returns (pct, actual, expected)."""
         now = datetime.now()
         start = (now - timedelta(hours=hours)).isoformat()
         end = now.isoformat()
         actual = len(self.store.get_readings_for_range(self.pig_name, start, end))
         expected = hours * _READINGS_PER_HOUR
         if expected <= 0:
-            return 100.0
-        return round(min(actual / expected * 100, 100.0), 1)
+            return 100.0, actual, 0
+        pct = round(min(actual / expected * 100, 100.0), 1)
+        return pct, actual, expected
 
     def _compute_daily_insulin(self) -> float:
         """Compute total insulin IU administered today."""

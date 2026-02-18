@@ -57,7 +57,7 @@ async def async_setup_entry(
 class GlucoFarmerPresetButton(ButtonEntity):
     """Button entity that logs a preset with one press."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(
@@ -75,7 +75,7 @@ class GlucoFarmerPresetButton(ButtonEntity):
         self._pig_name = pig_name
         preset_slug = preset["name"].lower().replace(" ", "_")
         self._attr_unique_id = f"{entry_id}_preset_{preset_slug}"
-        self._attr_name = f"Preset: {preset['name']}"
+        self._attr_name = preset["name"]
         self._attr_icon = (
             "mdi:needle" if preset["type"] == PRESET_TYPE_INSULIN else "mdi:food-apple"
         )

@@ -36,6 +36,7 @@ class GlucoFarmerSensorEntityDescription(SensorEntityDescription):
     """Describe a GlucoFarmer sensor entity."""
 
     value_fn: Callable[[GlucoFarmerData], float | str | None]
+    attrs_fn: Callable[[GlucoFarmerData], dict[str, Any]] | None = None
 
 
 SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
@@ -125,6 +126,23 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.data_completeness_pct,
+        attrs_fn=lambda data: {
+            "actual": data.readings_today_actual,
+            "expected": data.readings_today_expected,
+            "missed": max(0, data.readings_today_expected - data.readings_today_actual),
+        },
+    ),
+    GlucoFarmerSensorEntityDescription(
+        key="data_completeness_range",
+        translation_key="data_completeness_range",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.data_completeness_range_pct,
+        attrs_fn=lambda data: {
+            "actual": data.readings_range_actual,
+            "expected": data.readings_range_expected,
+            "missed": max(0, data.readings_range_expected - data.readings_range_actual),
+        },
     ),
     GlucoFarmerSensorEntityDescription(
         key="daily_insulin_total",
@@ -195,6 +213,13 @@ class GlucoFarmerSensorEntity(
         if self.coordinator.data is None:
             return None
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return optional extra attributes."""
+        if self.coordinator.data is None or self.entity_description.attrs_fn is None:
+            return None
+        return self.entity_description.attrs_fn(self.coordinator.data)
 
 
 class GlucoFarmerEventsSensor(

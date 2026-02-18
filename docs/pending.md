@@ -23,11 +23,12 @@ Werden bei Gelegenheit (Milestone, Deploy) eingearbeitet und dann geleert.
 - Select chart_timerange aendert nichts an der Anzeige
 - Alle Werte/Sensoren sollen sich beim Wechsel aktualisieren
 
-**#4 Datenvollstaendigkeit falsch berechnet**
-- Zeigt 37.8% obwohl fast keine Ausfaelle seit Mitternacht
-- Springt zwischen 37.8% und 75% -- Logik inkonsistent
-- Berechnung in coordinator._compute_data_completeness() pruefen
-- Gewuenscht: nachvollziehbar, z.B. "x von y Messungen vorhanden"
+**#4 Datenvollstaendigkeit falsch berechnet** -- FIXED (v1.3.4)
+- War: rollierendes 24h Fenster statt seit Mitternacht
+- Fix: data_completeness_today = seit Mitternacht; data_completeness_range = gewahlter Zeitraum
+- Beide Sensoren haben Attribute: actual, expected, missed
+- Seite 1 zeigt Range-Completeness mit "x/y, z verpasst"
+- Seite 3 zeigt Today-Completeness mit "x/y, z verpasst"
 
 **#5 Presets: Text unsichtbar + Logik kaputt**
 - Preset-Buttons zeigen keinen Text
@@ -72,6 +73,22 @@ Werden bei Gelegenheit (Milestone, Deploy) eingearbeitet und dann geleert.
 - Evtl. schon auf Seite 1 sichtbar
 
 ### Vormerken / Spaeter
+
+- **No-Data Notification: laufend aktualisieren** -- Notification bei no_data-Status bei
+  jedem Coordinator-Refresh mit aktueller reading_age updaten (gleiche notification_id
+  = update in-place, kein Spam). User sieht immer "Keine Daten seit X min" statt
+  veraltetem Wert. Zusammen mit Sync-Echtzeit-Fix einplanen.
+
+- **Sync-Anzeige Echtzeit** -- reading_age friert zwischen Coordinator-Refreshes ein.
+  Fix: Dashboard-Template mit last_changed(entity_id) + now() statt Sensor-Wert.
+  Kein Coordinator-Change noetig, nur dashboard.py anpassen.
+
+- **Dexcom Share Delay bei Datenverlust (beobachtet: 12min)** -- WICHTIG fuer Alarme!
+  Dexcom Share selbst braucht bis zu 12min um einen Sensorausfall zu erkennen.
+  Unser no_data-Alarm feuert erst bei Share-Delay + data_timeout (default 20min) = ~32min.
+  Optionen: data_timeout Default auf 10min senken (Einstellung), und/oder
+  reading_age direkt ueberwachen (wenn reading_age > X und kein neuer Wert via Listener).
+  Prioritaet: mittel (vor Alarm-Feintuning einplanen).
 
 - Mail-Versand Tages-Report + CSV Glucose-Rohdaten als Daten-Backup
   → Empfehlung: als HA Automation (Nutzer waehlt Uhrzeit + Mail-Provider selbst)
