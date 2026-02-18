@@ -20,7 +20,7 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.11 (letzter commit: #10/#13/#15)
+**Version**: v1.3.12 (letzter commit: Polling 5min->60s)
 **Deployed**: v1.3.3 (v1.3.4-v1.3.11 committed aber noch nicht in HA getestet/deployed)
 **Naechster Schritt**: Seite 2 besprechen und ueberarbeiten (#12)
 

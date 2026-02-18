@@ -1,5 +1,12 @@
 # GlucoFarmer Changelog
 
+## v1.3.12 (18.02.2026)
+Fix: Coordinator-Polling von 5min zurueck auf 60s (schnellere Initialisierung):
+- Nach HA-Neustart blieben Entities bis zu 5 Minuten auf NA weil der
+  Dexcom-State-Listener nach Restart nicht sofort feuert und das Safety-
+  Polling als Fallback erst nach 5min griff. Zurueck auf 60s als Fallback-
+  Intervall -- der State-Listener bleibt fuer Echtzeit-Updates zustaendig.
+
 ## v1.3.11 (18.02.2026)
 Dashboard: Achtung-Symbol, Threshold-Fussnote, Graph-Fixes (#10/#13/#15):
 - **#10 Seite 1**: Gauge-Bereich zeigt jetzt Achtung-Symbol + Text wenn Sensor
