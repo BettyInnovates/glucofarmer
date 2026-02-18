@@ -1,5 +1,14 @@
 # GlucoFarmer Changelog
 
+## v1.3.6 (18.02.2026)
+Fix #6: Completeness Seite 1/3 vertauscht + Darstellung:
+- **Seite 1**: Zeigt jetzt `data_completeness_today` (seit Mitternacht) statt range.
+  Separates Markdown-Kaestchen entfernt -- zwei Zeilen direkt in die Glucose/Trend/Sync
+  Entities-Card integriert: "Vollstaendigkeit" (%) + "Verpasst heute" (Anzahl).
+- **Seite 3**: Zeigt jetzt `data_completeness_range` (gewaehlter Zeitraum) statt today.
+  Completeness aus der Zone-Markdown entfernt -- als "Vollstaendigkeit" + "Verpasst"
+  in die Details-Entities-Card verschoben (zusammen mit Insulin/BE-Summe).
+
 ## v1.3.1 (18.02.2026)
 Dexcom State-Listener fuer minimale Latenz:
 - **State-Listener statt reinem Polling** -- `__init__.py` registriert via

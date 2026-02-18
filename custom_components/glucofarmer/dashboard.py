@@ -173,7 +173,7 @@ def _build_overview_view(
                 },
             })
 
-        # Info: Glucose, Trend, Sync + range completeness
+        # Info: Glucose, Trend, Sync + today completeness (integrated)
         status_entities = []
         for key, label in [
             ("glucose_value", "Glucose"),
@@ -183,28 +183,20 @@ def _build_overview_view(
             if key in ents:
                 status_entities.append({"entity": ents[key], "name": label})
 
+        comp_today_entity = ents.get("data_completeness_today")
+        if comp_today_entity:
+            status_entities.append({"entity": comp_today_entity, "name": "Vollstaendigkeit"})
+            status_entities.append({
+                "type": "attribute",
+                "entity": comp_today_entity,
+                "attribute": "missed",
+                "name": "Verpasst heute",
+            })
+
         if status_entities:
             row_cards.append({
                 "type": "entities",
                 "entities": status_entities,
-            })
-
-        # Range completeness card with missed count
-        comp_range_entity = ents.get("data_completeness_range")
-        if comp_range_entity:
-            pig_cards.append({
-                "type": "markdown",
-                "content": (
-                    f"{{% set missed = state_attr('{comp_range_entity}', 'missed') %}}"
-                    f"{{% set actual = state_attr('{comp_range_entity}', 'actual') %}}"
-                    f"{{% set expected = state_attr('{comp_range_entity}', 'expected') %}}"
-                    f"{{% set pct = states('{comp_range_entity}') %}}"
-                    "Zeitraum: {{ actual }}/{{ expected }} Messungen"
-                    "{% if missed and missed > 0 %}"
-                    " — **{{ missed }} verpasst**"
-                    "{% endif %}"
-                    " ({{ pct }}%)"
-                ),
             })
 
         if row_cards:
@@ -450,24 +442,19 @@ def _build_stats_view(
                 if key in ents:
                     detail_entities.append({"entity": ents[key], "name": label})
 
-            # Today completeness with missed count
-            comp_today_entity = ents.get("data_completeness_today")
-            comp_today_md = ""
-            if comp_today_entity:
-                comp_today_md = (
-                    f"{{% set missed = state_attr('{comp_today_entity}', 'missed') %}}"
-                    f"{{% set actual = state_attr('{comp_today_entity}', 'actual') %}}"
-                    f"{{% set expected = state_attr('{comp_today_entity}', 'expected') %}}"
-                    f"{{% set pct = states('{comp_today_entity}') %}}"
-                    "\n\n**Heute (seit 0:00):** {{ actual }}/{{ expected }} Messungen"
-                    "{% if missed and missed > 0 %}"
-                    " — **{{ missed }} verpasst**"
-                    "{% endif %}"
-                    " ({{ pct }}%)"
-                )
+            # Range completeness in Details (based on selected timerange)
+            comp_range_entity = ents.get("data_completeness_range")
+            if comp_range_entity:
+                detail_entities.append({"entity": comp_range_entity, "name": "Vollstaendigkeit"})
+                detail_entities.append({
+                    "type": "attribute",
+                    "entity": comp_range_entity,
+                    "attribute": "missed",
+                    "name": "Verpasst",
+                })
 
             row_cards: list[dict[str, Any]] = [
-                {"type": "markdown", "content": zone_md + comp_today_md},
+                {"type": "markdown", "content": zone_md},
             ]
             if detail_entities:
                 row_cards.append({

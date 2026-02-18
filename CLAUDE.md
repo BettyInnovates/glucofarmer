@@ -20,24 +20,31 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.1 (Dexcom State-Listener + 5min Safety-Polling)
-**Deployed**: v1.3.1 (getestet, funktioniert)
-**Naechster Schritt**: Issue #6 – Seite 2 komplett ueberarbeiten
+**Version**: v1.3.6 (letzter commit: #6)
+**Deployed**: v1.3.3 (v1.3.4-v1.3.6 committed aber noch nicht in HA getestet/deployed)
+**Naechster Schritt**: Issue #7 – _last_valid_reading_time nach HA-Neustart wiederherstellen
 
 ### Offene Issues (Reihenfolge = Prioritaet)
 1. ~~Tages-Zusammenfassung kommt nicht~~ -- FIXED (v1.3.2)
-2. ~~Notification Datenverlust: Zeitangabe "unknown"~~ -- FIXED (v1.3.2)
+2. ~~Notification Datenverlust: Zeitangabe unknown~~ -- FIXED (v1.3.2)
 3. ~~Statistik Seite 3: Zeitraum-Wechsel ohne Effekt~~ -- FIXED (v1.3.3)
 4. ~~Datenvollstaendigkeit falsch berechnet~~ -- FIXED (v1.3.4)
 5. ~~Presets: Text unsichtbar + Logik kaputt~~ -- FIXED (v1.3.5)
-6. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten
-7. Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)
-8. Seite 3: Stacked Balkendiagramm Zonen
-9. Seite 1: Ampel-System alle Schweine
-10. Seite 1: Pig-Selektor ein/ausblenden
-11. Fehlende Zeitstempel zaehlen (x von y missed)
-V. Sync-Anzeige Echtzeit (dashboard template, kein Coordinator-Change)
-W. Dexcom Share Delay ~12min → no_data Alarm default_timeout ueberdenken
+6. ~~Completeness auf Seite 1/3 vertauscht + Darstellung falsch~~ -- FIXED (v1.3.6)
+-- Offene Bugs --
+7. BUG: Nach HA-Neustart lost_valid_reading_time verloren -> unknown bei Notification
+8. BUG: Preset-Text beim Anlegen im Config Flow unsichtbar (HA UI Problem)
+9. BE-Summe aktualisiert sich mit Verzoegerung nach Logging
+-- Dashboard Ueberarbeitung --
+10. Seite 1: Gauge durch Achtung-Symbol ersetzen wenn kein Wert (war schon geplant)
+11. Seite 1: Mehrere Schweine im Header / Ampel-Konzept (vordenken)
+12. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten (Graph+Buttons, Summierung)
+13. Seite 3: Threshold-Werte in Klammern - besser loesen (Fussnote oder ins Balkendiagramm)
+14. Seite 3: Stacked Balkendiagramm Zonen
+15. Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)
+16. Seite 1: Pig-Selektor ein/ausblenden
+V. Sync-Anzeige Echtzeit (dashboard template)
+W. Dexcom Share Delay ~12min -> no_data Alarm default_timeout ueberdenken
 -- Details in docs/pending.md --
 
 ## Bekannte Einschraenkungen / TODOs

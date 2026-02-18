@@ -58,6 +58,42 @@ Werden bei Gelegenheit (Milestone, Deploy) eingearbeitet und dann geleert.
 - "Zeit im Zielbereich" als Stacked Bar, nicht nur Punkte/Zahlen
 - Pruefen ob mit vorhandener Dashboard-Card moeglich
 
+### Neue Bugs (entdeckt v1.3.5)
+
+**#6 Completeness Seite 1/3 vertauscht + Darstellung**
+- Seite 1 zeigt faelschlicherweise range-completeness → muss today sein
+- Seite 3 zeigt faelschlicherweise today-completeness → muss range sein
+- Seite 1: missed+completeness ins Glucose/Trend/Sync Kaestchen (kein extra Kaestchen)
+  Symbol + "Missed X today" + Completeness % ab 0:00
+- Seite 3: missed/completeness zu Details (nicht in Zonen-Karte), basierend auf Zeitraum
+- Threshold-Werte in Klammern bei Zonen: schlechter Umbruch
+  Optionen: Fussnote, oder spaeter direkt ins Balkendiagramm
+
+**#7 Nach HA-Neustart: _last_valid_reading_time verloren**
+- _last_valid_reading_time ist in-memory → nach Neustart None
+- Folge: Notification zeigt wieder unknown obwohl Store letzten Timestamp kennt
+- Fix: beim Coordinator-Init letzten Reading-Timestamp aus Store laden
+  store.get_readings_today(pig_name) oder get_readings_for_range → letzten nehmen
+
+**#8 Preset-Text beim Anlegen im Config Flow unsichtbar**
+- UI-Problem: Texte/Labels im HA Options Flow Config Flow nicht sichtbar
+- Moeglicherweise strings.json / translations fehlen oder falsch
+- Untersuchen: strings.json Eintraege fuer add_preset Step
+
+**#9 BE-Summe aktualisiert sich mit Verzoegerung**
+- Nach Logging: Coordinator-Refresh wird ausgeloest aber UI aktualisiert sich nicht sofort
+- Moeglicherweise State-Update-Timing in HA (Entity schreibt neuen State erst beim naechsten Poll)
+- Untersuchen: ob async_write_ha_state nach Refresh fehlt
+
+### Dashboard Mehrere Schweine / Ampel
+
+**Seite 1: Mehrere Schweine Konzept**
+- Aktuell: Wert oben, darunter Schweinsname - bei mehreren wuerden diese untereinander stehen
+- Geplante Ampel soll ganz oben stehen: schneller Status-Ueberblick aller Schweine
+- Vorschlag: Ampelzeile ganz oben (1 Zeile pro Schwein: Name + Status-Farbe + Glucose)
+  dann erst Graph, dann Gauge+Info pro Schwein
+- Pig-Selektor (ein/ausblenden) spaeter dazu
+
 ### P3 – Verbesserungen
 
 **#9 Seite 1: Ampel-System alle Schweine**
