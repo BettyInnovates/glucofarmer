@@ -179,7 +179,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             glucose_value=glucose_value,
             glucose_trend=trend_value,
             glucose_status=glucose_status,
-            reading_age_minutes=round(reading_age, 1) if reading_age is not None else None,
+            reading_age_minutes=round(reading_age) if reading_age is not None else None,
             time_critical_low_pct=zones[0],
             time_low_pct=zones[1],
             time_in_range_pct=zones[2],

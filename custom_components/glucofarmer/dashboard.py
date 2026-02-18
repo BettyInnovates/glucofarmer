@@ -75,11 +75,10 @@ def _build_overview_view(
                 "show_states": True,
             },
             "graph_span": "6h",
-            "yaxis": [{"min": 20, "max": 350}],
+            "yaxis": [{"min": 20, "max": 350, "opposite": False}],
             "apex_config": {
                 "chart": {"height": 350},
                 "legend": {"show": True},
-                "yaxis": [{"opposite": False, "tickAmount": 6}],
                 "annotations": {
                     "yaxis": [
                         {
@@ -89,6 +88,7 @@ def _build_overview_view(
                             "opacity": 0.12,
                             "label": {
                                 "text": "Kritisch niedrig",
+                                "position": "left",
                                 "style": {"color": "#EF5350"},
                             },
                         },
@@ -99,6 +99,7 @@ def _build_overview_view(
                             "opacity": 0.12,
                             "label": {
                                 "text": "Niedrig",
+                                "position": "left",
                                 "style": {"color": "#FF9800"},
                             },
                         },
@@ -109,6 +110,7 @@ def _build_overview_view(
                             "opacity": 0.08,
                             "label": {
                                 "text": "Normal",
+                                "position": "left",
                                 "style": {"color": "#4CAF50"},
                             },
                         },
@@ -119,6 +121,7 @@ def _build_overview_view(
                             "opacity": 0.12,
                             "label": {
                                 "text": "Hoch",
+                                "position": "left",
                                 "style": {"color": "#FF9800"},
                             },
                         },
@@ -129,6 +132,7 @@ def _build_overview_view(
                             "opacity": 0.12,
                             "label": {
                                 "text": "Sehr hoch",
+                                "position": "left",
                                 "style": {"color": "#EF5350"},
                             },
                         },
@@ -198,12 +202,13 @@ def _build_overview_view(
 
         comp_today_entity = ents.get("data_completeness_today")
         if comp_today_entity:
-            status_entities.append({"entity": comp_today_entity, "name": "Vollstaendigkeit"})
+            status_entities.append({"entity": comp_today_entity, "name": "Coverage"})
             status_entities.append({
                 "type": "attribute",
                 "entity": comp_today_entity,
                 "attribute": "missed",
-                "name": "Verpasst heute",
+                "name": "missed",
+                "suffix": " today",
             })
 
         if status_entities:
@@ -519,13 +524,13 @@ def _build_stats_view(
                     "annotations": {
                         "yaxis": [
                             {"y": 55, "borderColor": "#FF0000",
-                             "label": {"text": "Kritisch"}},
+                             "label": {"text": "Kritisch", "position": "left"}},
                             {"y": 70, "borderColor": "#FFA500",
-                             "label": {"text": "Niedrig"}},
+                             "label": {"text": "Niedrig", "position": "left"}},
                             {"y": 180, "borderColor": "#FFA500",
-                             "label": {"text": "Hoch"}},
+                             "label": {"text": "Hoch", "position": "left"}},
                             {"y": 250, "borderColor": "#FF0000",
-                             "label": {"text": "Sehr hoch"}},
+                             "label": {"text": "Sehr hoch", "position": "left"}},
                         ],
                     },
                 },

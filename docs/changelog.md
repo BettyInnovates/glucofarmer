@@ -1,5 +1,19 @@
 # GlucoFarmer Changelog
 
+## v1.3.13 (18.02.2026)
+Dashboard-Korrekturen und kleinere Fixes:
+- **Sync ohne Kommastellen** -- reading_age_minutes wird jetzt als Integer
+  zurueckgegeben (round() statt round(..., 1)).
+- **GitHub-Link entfernt** -- falscher Link (glucofarmer/ha-glucofarmer)
+  aus manifest.json entfernt; version auf 1.3.13 aktualisiert.
+- **Coverage statt Vollstaendigkeit** -- Label in Seite 1 Entities-Card.
+- **missed X today** -- Attribut-Zeile zeigt jetzt Label missed + Zahl +
+  Suffix today (statt Verpasst heute).
+- **Y-Achse links** -- opposite: false jetzt korrekt auf card-level yaxis
+  (Seite 1) statt in apex_config. apex_config.yaxis-Dopplung entfernt.
+- **Annotations-Labels links** -- position: left auf allen Zone-Labels
+  in beiden Graphen (Seite 1 und Seite 3).
+
 ## v1.3.12 (18.02.2026)
 Fix: Coordinator-Polling von 5min zurueck auf 60s (schnellere Initialisierung):
 - Nach HA-Neustart blieben Entities bis zu 5 Minuten auf NA weil der
