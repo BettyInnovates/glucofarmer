@@ -120,4 +120,8 @@ class GlucoFarmerSelectEntity(SelectEntity):
                 self._coordinator.hass.data.setdefault(DOMAIN, {})[
                     "chart_timerange"
                 ] = option
+                # Refresh all pig coordinators immediately -- chart_timerange is global
+                for entry in self._coordinator.hass.config_entries.async_entries(DOMAIN):
+                    if hasattr(entry, "runtime_data") and entry.runtime_data:
+                        await entry.runtime_data.async_request_refresh()
         self.async_write_ha_state()
