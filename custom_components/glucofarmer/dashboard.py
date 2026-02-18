@@ -423,41 +423,61 @@ def _build_stats_view(
             {"type": "markdown", "content": f"## {pig['name']}"},
         ]
 
-        # 5-zone distribution as text + details
-        crit_low_ent = ents.get("critical_low_threshold", "")
-        low_ent = ents.get("low_threshold", "")
-        high_ent = ents.get("high_threshold", "")
-        very_high_ent = ents.get("very_high_threshold", "")
-
-        def _threshold(entity_id: str) -> str:
-            return f"{{{{ states('{entity_id}') | int }}}}"
-
-        zone_parts = []
-        for key, emoji, label in [
-            ("time_very_high_pct", "\U0001f534", "Sehr hoch"),
-            ("time_high_pct", "\U0001f7e0", "Hoch"),
-            ("time_in_range_pct", "\U0001f7e2", "Zielbereich"),
-            ("time_low_pct", "\U0001f7e1", "Niedrig"),
-            ("time_critical_low_pct", "\U0001f534", "Sehr niedrig"),
+        # 5-zone distribution as stacked horizontal bar chart
+        zone_series = []
+        for key, name, color in [
+            ("time_critical_low_pct", "Kritisch niedrig", "#B71C1C"),
+            ("time_low_pct", "Niedrig", "#FF9800"),
+            ("time_in_range_pct", "Zielbereich", "#4CAF50"),
+            ("time_high_pct", "Hoch", "#FB8C00"),
+            ("time_very_high_pct", "Sehr hoch", "#EF5350"),
         ]:
             if key in ents:
-                zone_parts.append(
-                    f"{emoji} {{{{ states('{ents[key]}') }}}}% {label}"
-                )
+                zone_series.append({
+                    "entity": ents[key],
+                    "name": name,
+                    "color": color,
+                    "group_by": {"duration": "30min", "func": "last"},
+                })
 
-        if zone_parts:
-            thresholds_note = (
-                f"_Schwellwerte: krit. < {_threshold(crit_low_ent)}"
-                f" | niedrig {_threshold(crit_low_ent)}\u2013{_threshold(low_ent)}"
-                f" | Ziel {_threshold(low_ent)}\u2013{_threshold(high_ent)}"
-                f" | hoch {_threshold(high_ent)}\u2013{_threshold(very_high_ent)}"
-                f" | sehr hoch > {_threshold(very_high_ent)} mg/dL_"
-            )
-            zone_md = (
-                "### Zeit im Zielbereich\n\n"
-                + "\n\n".join(zone_parts)
-                + "\n\n" + thresholds_note
-            )
+        if zone_series:
+            pig_cards.append({
+                "type": "custom:apexcharts-card",
+                "chart_type": "bar",
+                "stacked": True,
+                "graph_span": "30min",
+                "header": {
+                    "show": True,
+                    "title": "Zeit im Zielbereich",
+                },
+                "apex_config": {
+                    "chart": {"height": 165},
+                    "plotOptions": {
+                        "bar": {
+                            "horizontal": True,
+                            "dataLabels": {"position": "center"},
+                        },
+                    },
+                    "legend": {"show": True, "position": "bottom"},
+                    "xaxis": {
+                        "max": 100,
+                        "labels": {
+                            "formatter": "function(val) { return Math.round(val) + '%'; }",
+                        },
+                    },
+                    "yaxis": {"labels": {"show": False}},
+                    "dataLabels": {
+                        "enabled": True,
+                        "formatter": "function(val) { return val > 5 ? Math.round(val) + '%' : ''; }",
+                    },
+                    "tooltip": {
+                        "y": {"formatter": "function(val) { return Math.round(val) + '%'; }"},
+                    },
+                },
+                "series": zone_series,
+            })
+
+            # Details: insulin, feeding, completeness
             detail_entities = []
             for key, label in [
                 ("daily_insulin_total", "Insulin gesamt"),
@@ -466,7 +486,6 @@ def _build_stats_view(
                 if key in ents:
                     detail_entities.append({"entity": ents[key], "name": label})
 
-            # Range completeness in Details (based on selected timerange)
             comp_range_entity = ents.get("data_completeness_range")
             if comp_range_entity:
                 detail_entities.append({"entity": comp_range_entity, "name": "Vollstaendigkeit"})
@@ -477,16 +496,12 @@ def _build_stats_view(
                     "name": "Verpasst",
                 })
 
-            row_cards: list[dict[str, Any]] = [
-                {"type": "markdown", "content": zone_md},
-            ]
             if detail_entities:
-                row_cards.append({
+                pig_cards.append({
                     "type": "entities",
                     "title": "Details",
                     "entities": detail_entities,
                 })
-            pig_cards.append({"type": "horizontal-stack", "cards": row_cards})
 
         # Glucose chart with zoom/pan and 5-zone annotations
         glucose_entity = ents.get("glucose_value")

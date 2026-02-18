@@ -1,5 +1,14 @@
 # GlucoFarmer Changelog
 
+## v1.3.14 (18.02.2026)
+Seite 3: Stacked Bar Chart fuer Zonenverteilung, Fussnote entfernt:
+- **Stacked Bar Chart** -- "Zeit im Zielbereich" zeigt jetzt ein
+  gestapeltes horizontales Balkendiagramm (apexcharts) statt Emoji-Text.
+  Fuenf Zonen farblich: Kritisch niedrig (dunkelrot), Niedrig (orange),
+  Zielbereich (gruen), Hoch (orange), Sehr hoch (rot).
+- **Fussnote entfernt** -- Schwellwert-Fussnote unter den Zonen war zu
+  ueberladen. Wird spaeter ueberarbeitet (evtl. kleine Zahlen am Balken).
+
 ## v1.3.13 (18.02.2026)
 Dashboard-Korrekturen und kleinere Fixes:
 - **Sync ohne Kommastellen** -- reading_age_minutes wird jetzt als Integer

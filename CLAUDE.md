@@ -20,32 +20,56 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.13 (letzter commit: Dashboard-Korrekturen)
-**Deployed**: v1.3.3 (v1.3.4-v1.3.11 committed aber noch nicht in HA getestet/deployed)
-**Naechster Schritt**: Seite 2 besprechen und ueberarbeiten (#12)
+**Version**: v1.3.14 (noch nicht committed -- Commit-Message bereit, User muss noch pushen)
+**Deployed**: v1.3.13 (v1.3.14 noch ausstehend)
+**Naechster Schritt**: v1.3.14 committen/pushen, dann Seite 2 besprechen
+
+### Was v1.3.14 enthaelt (bereit zum commit):
+- Seite 3: Stacked Bar Chart (apexcharts) statt Emoji-Zonentext
+- Seite 3: Threshold-Fussnote entfernt (war zu ueberladen)
+- Version auf 1.3.14
+
+### Commit-Message fuer v1.3.14:
+```
+feat: Stacked Bar Chart fuer Zonenverteilung Seite 3 (v1.3.14)
+
+Seite 3 zeigt Zeit im Zielbereich jetzt als gestapeltes horizontales
+Balkendiagramm (apexcharts). Fuenf Zonen farblich kodiert. Threshold-
+Fussnote entfernt (war zu ueberladen; spaetere Idee: kleine Grenzwerte
+am Balkendiagramm links).
+```
 
 ### Offene Issues (Reihenfolge = Prioritaet)
 1. ~~Tages-Zusammenfassung kommt nicht~~ -- FIXED (v1.3.2)
 2. ~~Notification Datenverlust: Zeitangabe unknown~~ -- FIXED (v1.3.2)
 3. ~~Statistik Seite 3: Zeitraum-Wechsel ohne Effekt~~ -- FIXED (v1.3.3)
 4. ~~Datenvollstaendigkeit falsch berechnet~~ -- FIXED (v1.3.4)
-5. ~~Presets: Text unsichtbar + Logik kaputt~~ -- FIXED (v1.3.5)
+5. ~~Presets: Text unsichtbar + Logik kaputt (Buttons)~~ -- FIXED (v1.3.5)
 6. ~~Completeness auf Seite 1/3 vertauscht + Darstellung falsch~~ -- FIXED (v1.3.6)
-7. ~~Nach HA-Neustart lost_valid_reading_time verloren -> unknown bei Notification~~ -- FIXED (v1.3.7)
-8. ~~Preset-Text beim Anlegen im Config Flow unsichtbar~~ -- FIXED (v1.3.8)
-9. ~~BE-Summe aktualisiert sich mit Verzoegerung nach Logging~~ -- FIXED (v1.3.9)
+7. ~~Nach HA-Neustart _last_valid_reading_time verloren~~ -- FIXED (v1.3.7)
+8. ~~Preset-Text im Config Flow unsichtbar~~ -- FIXED (v1.3.8+v1.3.10)
+9. ~~BE-Summe aktualisiert sich mit Verzoegerung~~ -- FIXED (v1.3.9)
+10. ~~Seite 1: Gauge durch Achtung-Symbol ersetzen~~ -- FIXED (v1.3.11)
+11. ~~Seite 3: Threshold-Fussnote~~ -- ENTFERNT (v1.3.14, war zu ueberladen)
+12. ~~Graph-Fixes (6h Seite 1, Y-Achse)~~ -- FIXED (v1.3.11/v1.3.13)
+13. ~~Coordinator-Polling 5min zu langsam nach Restart~~ -- FIXED (v1.3.12, zurueck auf 60s)
+14. ~~Seite 3: Stacked Balkendiagramm Zonen~~ -- FIXED (v1.3.14)
 -- Offene Bugs --
-9. BE-Summe aktualisiert sich mit Verzoegerung nach Logging
+A. Coverage/missed: expected zaehlt ab Mitternacht, nicht ab erstem Reading heute
+   → Verdacht: missed erscheint zu hoch; pruefen ob Design-Aenderung noetig
+   → Details in pending.md
+B. Preset-Logik hat noch Fehler (wird bei Seite-2-Ueberarbeitung gefixt)
 -- Dashboard Ueberarbeitung --
-10. ~~Seite 1: Gauge durch Achtung-Symbol ersetzen wenn kein Wert~~ -- FIXED (v1.3.11)
-11. Seite 1: Mehrere Schweine im Header / Ampel-Konzept (vordenken)
-12. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten (Graph+Buttons, Summierung) -- BESPRECHEN
-13. ~~Seite 3: Threshold-Werte in Klammern - besser loesen~~ -- FIXED (v1.3.11, Fussnote)
-14. Seite 3: Stacked Balkendiagramm Zonen
-15. ~~Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)~~ -- FIXED (v1.3.11)
-16. Seite 1: Pig-Selektor ein/ausblenden
-V. Sync-Anzeige Echtzeit (dashboard template)
-W. Dexcom Share Delay ~12min -> no_data Alarm default_timeout ueberdenken
+15. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten -- MUSS BESPROCHEN WERDEN
+    (Graph+Preset-Buttons+manuelle Eingabe, Summierung, Soft-Delete, Zeitstempel)
+16. Seite 3: Schwellwerte am Bar Chart anzeigen -- IDEE (nach Seite-2)
+    Evtl. kleine Zahlen links am Balken statt Fussnote; erst entscheiden
+    wenn User das Diagramm gesehen hat.
+17. Seite 1: Mehrere Schweine im Header / Ampel-Konzept (vordenken/besprechen)
+18. Seite 1: Pig-Selektor ein/ausblenden (spaeter)
+V. Sync-Anzeige Echtzeit (dashboard template -- kann Claude selbststaendig machen)
+W. Schwellwerte global fuer alle Schweine (aktuell pro Schwein; besprechen wenn noetig)
+X. Dexcom Share Delay ~12min -> no_data Alarm default_timeout ueberdenken
 -- Details in docs/pending.md --
 
 ## Bekannte Einschraenkungen / TODOs
@@ -54,6 +78,8 @@ W. Dexcom Share Delay ~12min -> no_data Alarm default_timeout ueberdenken
 - Keine automatischen Tests
 - Taeglicher Report: 5-Zonen mit Schwellwerten (seit v1.3.0)
 - Chart-Zeitraum beeinflusst nur Zonen-Statistik, nicht apexcharts graph_span
+- Schwellwerte aktuell pro Schwein (je eigene Number-Entities) -- fuer jetzt OK,
+  Projektleiter koennte spaeter pro-Schwein-Schwellwerte wollen (Architektur bereits vorhanden)
 
 ## Deployment
 

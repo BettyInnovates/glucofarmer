@@ -5,147 +5,89 @@ Werden bei Gelegenheit (Milestone, Deploy) eingearbeitet und dann geleert.
 
 ---
 
-## Offene Issues (detailliert) -- Stand 18.02.2026
+## Stand: 18.02.2026
 
-### P1 – Bugs
+### Was in dieser Session gemacht wurde (v1.3.6 bis v1.3.14)
 
-**#1 Tages-Zusammenfassung kommt nicht mehr**
-- Letzte Nacht keine Zusammenfassung erhalten
-- Ursache unklar, in __init__.py/_send_daily_report() untersuchen
-- Spaeter: auch per Mail verschicken + CSV mit Glucose-Rohdaten als Daten-Backup
-
-**#2 Notification Datenverlust: Zeitangabe falsch**
-- Zeigt "unknown" oder "no data" statt Anzahl Minuten
-- Betrifft _check_alarms() / STATUS_NO_DATA Branch in __init__.py
-- reading_age_minutes ist None obwohl Sensor unavailable
-
-**#3 Statistik Seite 3: Zeitraum-Wechsel ohne Effekt**
-- Select chart_timerange aendert nichts an der Anzeige
-- Alle Werte/Sensoren sollen sich beim Wechsel aktualisieren
-
-**#4 Datenvollstaendigkeit falsch berechnet** -- FIXED (v1.3.4)
-- War: rollierendes 24h Fenster statt seit Mitternacht
-- Fix: data_completeness_today = seit Mitternacht; data_completeness_range = gewahlter Zeitraum
-- Beide Sensoren haben Attribute: actual, expected, missed
-- Seite 1 zeigt Range-Completeness mit "x/y, z verpasst"
-- Seite 3 zeigt Today-Completeness mit "x/y, z verpasst"
-
-**#5 Presets: Text unsichtbar + Logik kaputt**
-- Preset-Buttons zeigen keinen Text
-- Insulin-Preset nach Erstellung nicht in Auswahl sichtbar
-- Gesamte Preset-Logik und Darstellung ueberdenken
-
-### P2 – Dashboard UX
-
-**#6 Seite 2: Komplett ueberarbeiten**
-- Layout: zurueck zu Graph (Uebersicht Schwein) + Buttons darunter
-- Workflow: erst Button sichtbar, nach Klick Formular einblenden
-- Presets + manuelle Eingabe moeglich
-- Zeitstempel: default=jetzt, Option "vor X min"
-- BE/Insulin: summieren (nicht ueberschreiben), getrennt pro Typ
-- Loeschen: Soft-Delete mit Sicherheitsabfrage ("wirklich loeschen?")
-  Admin-Ansicht zum Einsehen + Wiederherstellen geloeschter Events
-  Option: statt Loeschen auch Zeitstempel aendern
-- Events nach Mitternacht duerfen nicht verschwinden (Bug)
-- Vormerken: Icons (Apfel/Spritze) im Graph oder darunter als Timeline
-
-**#7 Graph-Fixes (alle Seiten)**
-- Seite 1: 6h statt 12h anzeigen
-- Y-Achse: Labels LINKS (nicht rechts), sinnvolle Werte (Grenzwerte oder 50/100er Schritte)
-- Konsistent auf allen Seiten umsetzen
-
-**#8 Seite 3: Stacked Balkendiagramm Zonen**
-- "Zeit im Zielbereich" als Stacked Bar, nicht nur Punkte/Zahlen
-- Pruefen ob mit vorhandener Dashboard-Card moeglich
-
-### Neue Bugs (entdeckt v1.3.5)
-
-**#6 Completeness Seite 1/3 vertauscht + Darstellung**
-- Seite 1 zeigt faelschlicherweise range-completeness → muss today sein
-- Seite 3 zeigt faelschlicherweise today-completeness → muss range sein
-- Seite 1: missed+completeness ins Glucose/Trend/Sync Kaestchen (kein extra Kaestchen)
-  Symbol + "Missed X today" + Completeness % ab 0:00
-- Seite 3: missed/completeness zu Details (nicht in Zonen-Karte), basierend auf Zeitraum
-- Threshold-Werte in Klammern bei Zonen: schlechter Umbruch
-  Optionen: Fussnote, oder spaeter direkt ins Balkendiagramm
-
-**#7 Nach HA-Neustart: _last_valid_reading_time verloren**
-- _last_valid_reading_time ist in-memory → nach Neustart None
-- Folge: Notification zeigt wieder unknown obwohl Store letzten Timestamp kennt
-- Fix: beim Coordinator-Init letzten Reading-Timestamp aus Store laden
-  store.get_readings_today(pig_name) oder get_readings_for_range → letzten nehmen
-
-**#8 Preset-Text beim Anlegen im Config Flow unsichtbar**
-- UI-Problem: Texte/Labels im HA Options Flow Config Flow nicht sichtbar
-- Moeglicherweise strings.json / translations fehlen oder falsch
-- Untersuchen: strings.json Eintraege fuer add_preset Step
-
-**#10 Completeness: expected zaehlt ab Mitternacht, nicht ab Integration-Start**
-- Verdacht: missed-Wert erscheint zu hoch, weil expected immer von 00:00 rechnet
-  (minutes_since_midnight / 5), aber der Store nur Readings ab Integration-Start enthaelt
-- Pruefen: actual * Laufzeit-Stunden * 12 vergleichen — stimmt es ueberein?
-- Pruefen: ob Timezone-Mismatch (UTC-Timestamps im Store vs. naive Localtime in expected-
-  Berechnung) zu falschen actual-Zahlungen fuehrt, besonders in den ersten Stunden nach Mitternacht
-- Design-Frage: soll expected ab Mitternacht oder ab erstem gespeicherten Reading heute rechnen?
-
-**#9 BE-Summe aktualisiert sich mit Verzoegerung**
-- Nach Logging: Coordinator-Refresh wird ausgeloest aber UI aktualisiert sich nicht sofort
-- Moeglicherweise State-Update-Timing in HA (Entity schreibt neuen State erst beim naechsten Poll)
-- Untersuchen: ob async_write_ha_state nach Refresh fehlt
-
-### Dashboard Mehrere Schweine / Ampel
-
-**Seite 1: Mehrere Schweine Konzept**
-- Aktuell: Wert oben, darunter Schweinsname - bei mehreren wuerden diese untereinander stehen
-- Geplante Ampel soll ganz oben stehen: schneller Status-Ueberblick aller Schweine
-- Vorschlag: Ampelzeile ganz oben (1 Zeile pro Schwein: Name + Status-Farbe + Glucose)
-  dann erst Graph, dann Gauge+Info pro Schwein
-- Pig-Selektor (ein/ausblenden) spaeter dazu
-
-### P3 – Verbesserungen
-
-**#9 Seite 1: Ampel-System alle Schweine**
-- Ganz oben: schneller Ueberblick ob allen Schweinen gut geht
-- Idee: Ampel oder Statuszeile pro Schwein
-
-**#10 Seite 1: Pig-Selektor**
-- Schweine im Graph ein-/ausblenden
-- Vormerken: Gruppen (Kontrollgruppe / Testgruppe)
-
-**#11 Fehlende Zeitstempel zaehlen**
-- Anzeige: "x von y Messungen vorhanden" oder "N missed seit 0:00"
-- Evtl. schon auf Seite 1 sichtbar
-
-### Vormerken / Spaeter
-
-- **No-Data Notification: laufend aktualisieren** -- Notification bei no_data-Status bei
-  jedem Coordinator-Refresh mit aktueller reading_age updaten (gleiche notification_id
-  = update in-place, kein Spam). User sieht immer "Keine Daten seit X min" statt
-  veraltetem Wert. Zusammen mit Sync-Echtzeit-Fix einplanen.
-
-- **Sync-Anzeige Echtzeit** -- reading_age friert zwischen Coordinator-Refreshes ein.
-  Fix: Dashboard-Template mit last_changed(entity_id) + now() statt Sensor-Wert.
-  Kein Coordinator-Change noetig, nur dashboard.py anpassen.
-
-- **Dexcom Share Delay bei Datenverlust (beobachtet: 12min)** -- WICHTIG fuer Alarme!
-  Dexcom Share selbst braucht bis zu 12min um einen Sensorausfall zu erkennen.
-  Unser no_data-Alarm feuert erst bei Share-Delay + data_timeout (default 20min) = ~32min.
-  Optionen: data_timeout Default auf 10min senken (Einstellung), und/oder
-  reading_age direkt ueberwachen (wenn reading_age > X und kein neuer Wert via Listener).
-  Prioritaet: mittel (vor Alarm-Feintuning einplanen).
-
-- Mail-Versand Tages-Report + CSV Glucose-Rohdaten als Daten-Backup
-  → Empfehlung: als HA Automation (Nutzer waehlt Uhrzeit + Mail-Provider selbst)
-  → Unser Part: `glucofarmer.generate_report` Service mit pig_name, start, end, format (csv/text)
-- Schweine-Gruppen im Graph
-- Events als Icons im Graph (Fuetterung/Insulin-Zeitpunkte)
-- Detailansicht pro Schwein + Datenexport on Demand
-  → On-Demand Report: Button in Detailansicht ruft `glucofarmer.generate_report` auf
-  → Nutzer kann auch eigene Automation bauen (z.B. nach critical_low, woechentlich etc.)
+- v1.3.6: Completeness Seite 1/3 getauscht (today/range), in Entities-Card integriert
+- v1.3.7: _last_valid_reading_time nach HA-Neustart aus Store wiederherstellen
+- v1.3.8: Preset Config Flow mit HA-Selectors (TextSelector/SelectSelector/NumberSelector)
+- v1.3.9: async_refresh() statt async_request_refresh() in allen Buttons
+- v1.3.10: translations/en.json + translations/de.json erstellt (HA laedt aus translations/)
+- v1.3.11: Achtung-Symbol wenn kein Sensor-Wert, Threshold-Fussnote Seite 3, Graph 6h
+- v1.3.12: Coordinator-Polling 60s (war 5min, zu langsam nach Neustart)
+- v1.3.13: Sync ganzzahlig, Coverage/missed-Label, Y-Achse links (noch nicht committed)
+- v1.3.14: Stacked Bar Chart Seite 3, Threshold-Fussnote entfernt (noch nicht committed)
 
 ---
 
-## ha-internals.md
+## Offene Bugs
+
+### A. Coverage/missed: expected zaehlt ab Mitternacht, nicht ab erstem Reading
+- expected = minutes_since_midnight / 5 (immer ab 00:00)
+- actual = Readings im Store seit 00:00 UTC (timezone-mismatch moeglich!)
+- Verdacht: missed erscheint zu hoch wenn Integration nicht seit Mitternacht laeuft
+- Pruefen: actual * Laufzeit-Stunden * 12 -- stimmt das ueberein?
+- Timezone-Problem: UTC-Timestamps im Store vs. naive Localtime in expected-Berechnung
+  (Readings von 00:00-01:00 local/CET haben UTC-Datum von gestern -> werden nicht gezaehlt)
+- Design-Frage: expected ab Mitternacht ODER ab erstem gespeicherten Reading heute?
+- User beobachtet und meldet zurueck
+
+### B. Preset-Logik hat noch Fehler
+- Config Flow rendert jetzt korrekt (v1.3.8+v1.3.10)
+- Aber Preset-Verhalten beim Anlegen/Verwenden hat noch logische Fehler
+- Wird bei Seite-2-Ueberarbeitung gemeinsam mit neuem Layout besprochen und gefixt
+
+---
+
+## Naechste Schritte (Prioritaet)
+
+### SOFORT: v1.3.13 committen
+Commit-Message steht in CLAUDE.md bereit.
+
+### 1. Seite 2 besprechen (MUSS besprochen werden vor Implementierung)
+Geplante Aenderungen laut frueherer Diskussion:
+- Layout: Graph oben (Uebersicht Schwein) + Buttons darunter
+- Workflow: Button sichtbar -> nach Klick Formular einblenden
+- Presets + manuelle Eingabe beide moeglich
+- Zeitstempel: default=jetzt, Option "vor X min"
+- BE/Insulin: summieren (nicht ueberschreiben), getrennt pro Typ
+- Loeschen: Soft-Delete mit Sicherheitsabfrage; Admin-Ansicht fuer geloeschte Events
+- Events nach Mitternacht duerfen nicht verschwinden (Bug)
+- Preset-Logik Fehler hier mitfixen
+
+### 2. ~~Seite 3: Stacked Balkendiagramm~~ -- DONE (v1.3.14)
+- Umgesetzt als horizontal gestapeltes Balkendiagramm in apexcharts-card
+- chart_type: bar, stacked: true, graph_span: 30min, group_by last
+- Threshold-Fussnote entfernt (war zu ueberladen)
+- IDEE fuer spaeter: kleine Schwellwert-Zahlen links am Balken anzeigen
+  (statt Fussnote; erst entscheiden wenn User Diagramm gesehen hat)
+
+### 3. Sync-Anzeige Echtzeit (Claude kann selbststaendig)
+- reading_age friert zwischen Coordinator-Refreshes ein
+- Fix: Dashboard-Template mit last_changed(dexcom_entity_id) + now()
+- Nur dashboard.py aendern, kein Coordinator-Change noetig
+- Implementierung: Jinja-Template in Markdown-Card oder entities-Template
+
+### 4. Schwellwerte global fuer alle Schweine
+- Aktuell: jedes Schwein hat eigene Number-Entities fuer Schwellwerte
+- User will vorerst: alle Schweine teilen dieselben Schwellwerte
+- Architektur-Optionen:
+  a) Erste Schwein-Config gibt Werte vor, andere lesen davon
+  b) Globale Config-Entry fuer Schwellwerte
+  c) Beim Aendern bei Schwein A automatisch bei B/C mitaendern
+- Vormerken: pro-Schwein-Schwellwerte koennte Projektleiter spaeter wollen
+  (Architektur ist bereits vorhanden -- je eigene Number-Entities)
+
+### 5. Sonstige kleinere Punkte
+- Seite 1: Mehrere Schweine / Ampel-Konzept (Vordenken + Besprechen)
+- Seite 1: Pig-Selektor ein/ausblenden (spaeter)
+- Dexcom Share Delay ~12min -> no_data Alarm default_timeout (mittel, vor Alarm-Feintuning)
+- No-Data Notification: laufend aktualisieren (gleiche notification_id updaten)
+
+---
+
+## ha-internals.md (einzuarbeiten)
 
 ### State-Listener auf externe Sensor-Entities
 
@@ -161,24 +103,57 @@ entry.async_on_unload(unsub)  # sauber abmelden beim Entry-Unload
 - Feuert sofort wenn eine andere Integration den State der Entity aendert
 - Kein Polling -- rein event-basiert ueber HA-internen Event Bus
 - `hass.states.async_set()` loest automatisch `state_changed` Event aus
-- Kombinieren mit Safety-Polling (z.B. 5min) als Fallback empfohlen
+- Kombinieren mit Safety-Polling (60s) als Fallback empfohlen
 - Callback muss `@callback` dekoriert sein; Coroutines via `hass.async_create_task()`
+
+### async_refresh() vs async_request_refresh()
+
+- `async_request_refresh()`: debounced, kann verzoegert/geskippt werden
+- `async_refresh()`: sofort, blockiert bis Update fertig
+- Buttons verwenden async_refresh() fuer sofortige UI-Aktualisierung
+- State-Listener verwendet async_request_refresh() (Debounce OK da Dexcom eh 5min)
+
+### HA Config Flow Selectors (ab HA 2022+)
+
+```python
+from homeassistant.helpers.selector import (
+    TextSelector, SelectSelector, SelectSelectorConfig,
+    NumberSelector, NumberSelectorConfig, NumberSelectorMode,
+)
+```
+
+- Immer Selectors verwenden statt roher vol.In()/str/vol.Coerce(float)
+- Ohne Selectors rendert HA Frontend Felder ohne sichtbare Labels
+- Optionale Felder (vol.Optional) nur ins Schema wenn sie tatsaechlich Optionen haben
+  (leeres vol.In({}) kann das gesamte Formular-Rendering zerschiessen)
+
+### translations/ Verzeichnis (Pflicht fuer Custom Components)
+
+- HA Frontend laedt Strings aus `translations/{sprache}.json`, NICHT aus strings.json direkt
+- strings.json = Quelle fuer Entwicklung; translations/ = was HA tatsaechlich laedt
+- Mindestens translations/en.json und translations/de.json erstellen
+- Ohne translations/ zeigt Options Flow komplett leere Texte
 
 ---
 
-## architecture.md
+## architecture.md (einzuarbeiten)
 
-### Datenfluss-Ergaenzung (Dexcom-Listener)
-
-Im Abschnitt "Datenfluss" ergaenzen:
+### Datenfluss (aktuell, seit v1.3.1+v1.3.9)
 
 ```
 Dexcom-Sensor (HA) --state_changed Event--> Listener (__init__.py)
-                                                --> coordinator.async_request_refresh() (sofort)
-                   --5min Safety-Polling------> Coordinator._async_update_data()
+                                            --> coordinator.async_request_refresh() (sofort)
+                   --60s Safety-Polling---> Coordinator._async_update_data()
+
+Button (log_feeding/log_insulin/preset/archive)
+    --> store.async_log_*()
+    --> coordinator.async_refresh()  (sofort, blockierend)
+    --> CoordinatorEntity.async_write_ha_state() (automatisch)
 ```
 
-Statt bisher nur:
-```
-Dexcom-Sensor (HA) --> Coordinator (60s Polling)
-```
+### Store-Restore nach Neustart (v1.3.7)
+
+- `_last_valid_reading_time` ist in-memory, geht bei Neustart verloren
+- Fix: `_restore_last_reading_time()` laedt beim ersten `_async_update_data()`-Aufruf
+  den letzten Messzeitpunkt aus Store (heute, fallback letzte 24h)
+- Flag `_store_restored: bool` verhindert wiederholten Store-Zugriff
