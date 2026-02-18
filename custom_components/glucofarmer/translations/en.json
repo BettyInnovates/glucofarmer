@@ -80,8 +80,8 @@
         "data": {
           "name": "Preset name",
           "type": "Type",
-          "product": "Insulin product (for insulin presets)",
-          "feeding_category": "Feeding category (for feeding presets)",
+          "product": "Insulin product",
+          "feeding_category": "Feeding category",
           "amount": "Amount (IU or BE)"
         }
       },

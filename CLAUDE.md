@@ -20,8 +20,8 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.9 (letzter commit: #9)
-**Deployed**: v1.3.3 (v1.3.4-v1.3.9 committed aber noch nicht in HA getestet/deployed)
+**Version**: v1.3.10 (letzter commit: translations/)
+**Deployed**: v1.3.3 (v1.3.4-v1.3.10 committed aber noch nicht in HA getestet/deployed)
 **Naechster Schritt**: Dashboard-Ueberarbeitung (Issue #10+)
 
 ### Offene Issues (Reihenfolge = Prioritaet)

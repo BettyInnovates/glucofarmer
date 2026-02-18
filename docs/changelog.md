@@ -1,5 +1,15 @@
 # GlucoFarmer Changelog
 
+## v1.3.10 (18.02.2026)
+Fix: Options Flow und Entity-Namen ohne Text (fehlende translations/):
+- **translations/en.json** neu erstellt -- HA Frontend laedt Strings aus
+  diesem Ordner, nicht direkt aus strings.json. Ohne die Datei zeigt der
+  Options Flow (Settings-Button am Device) komplett leere Texte.
+- **translations/de.json** neu erstellt -- Deutsche Uebersetzung fuer alle
+  Config/Options Flow Schritte und Entity-Namen. Betrifft Nutzer die HA
+  auf Deutsch betreiben (was den Fehler verursacht hat).
+- **strings.json**: fehlenden data_completeness_range Sensor-Eintrag ergaenzt.
+
 ## v1.3.9 (18.02.2026)
 Fix #9: BE/Insulin-Summe aktualisiert sich sofort nach Logging:
 - **button.py**: alle async_press()-Methoden nutzen jetzt async_refresh()
