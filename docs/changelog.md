@@ -1,5 +1,15 @@
 # GlucoFarmer Changelog
 
+## v1.3.11 (18.02.2026)
+Dashboard: Achtung-Symbol, Threshold-Fussnote, Graph-Fixes (#10/#13/#15):
+- **#10 Seite 1**: Gauge-Bereich zeigt jetzt Achtung-Symbol + Text wenn Sensor
+  unavailable oder unknown ist (zwei conditional cards fuer beide States).
+- **#13 Seite 3**: Threshold-Werte nicht mehr in Klammern hinter jeder Zone
+  (schlechter Zeilenumbruch). Stattdessen eine Fussnote unter den Zonen:
+  _Schwellwerte: krit. < X | niedrig X-Y | Ziel Y-Z | hoch Z-W | sehr hoch > W mg/dL_
+- **#15 Graph-Fixes**: Seite 1 Graph von 12h auf 6h verkuerzt. Y-Achse auf
+  beiden Seiten (1 und 3) explizit links (opposite: false) mit 6 Tick-Stufen.
+
 ## v1.3.10 (18.02.2026)
 Fix: Options Flow und Entity-Namen ohne Text (fehlende translations/):
 - **translations/en.json** neu erstellt -- HA Frontend laedt Strings aus

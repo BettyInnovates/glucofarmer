@@ -20,9 +20,9 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.10 (letzter commit: translations/)
-**Deployed**: v1.3.3 (v1.3.4-v1.3.10 committed aber noch nicht in HA getestet/deployed)
-**Naechster Schritt**: Dashboard-Ueberarbeitung (Issue #10+)
+**Version**: v1.3.11 (letzter commit: #10/#13/#15)
+**Deployed**: v1.3.3 (v1.3.4-v1.3.11 committed aber noch nicht in HA getestet/deployed)
+**Naechster Schritt**: Seite 2 besprechen und ueberarbeiten (#12)
 
 ### Offene Issues (Reihenfolge = Prioritaet)
 1. ~~Tages-Zusammenfassung kommt nicht~~ -- FIXED (v1.3.2)
@@ -37,12 +37,12 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 -- Offene Bugs --
 9. BE-Summe aktualisiert sich mit Verzoegerung nach Logging
 -- Dashboard Ueberarbeitung --
-10. Seite 1: Gauge durch Achtung-Symbol ersetzen wenn kein Wert (war schon geplant)
+10. ~~Seite 1: Gauge durch Achtung-Symbol ersetzen wenn kein Wert~~ -- FIXED (v1.3.11)
 11. Seite 1: Mehrere Schweine im Header / Ampel-Konzept (vordenken)
-12. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten (Graph+Buttons, Summierung)
-13. Seite 3: Threshold-Werte in Klammern - besser loesen (Fussnote oder ins Balkendiagramm)
+12. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten (Graph+Buttons, Summierung) -- BESPRECHEN
+13. ~~Seite 3: Threshold-Werte in Klammern - besser loesen~~ -- FIXED (v1.3.11, Fussnote)
 14. Seite 3: Stacked Balkendiagramm Zonen
-15. Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)
+15. ~~Graph-Fixes (Y-Achse links+sinnvoll, 6h auf Seite 1, konsistent)~~ -- FIXED (v1.3.11)
 16. Seite 1: Pig-Selektor ein/ausblenden
 V. Sync-Anzeige Echtzeit (dashboard template)
 W. Dexcom Share Delay ~12min -> no_data Alarm default_timeout ueberdenken

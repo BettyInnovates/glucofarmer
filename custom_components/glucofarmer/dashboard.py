@@ -74,11 +74,12 @@ def _build_overview_view(
                 "title": "Glucose-Verlauf (alle Schweine)",
                 "show_states": True,
             },
-            "graph_span": "12h",
+            "graph_span": "6h",
             "yaxis": [{"min": 20, "max": 350}],
             "apex_config": {
                 "chart": {"height": 350},
                 "legend": {"show": True},
+                "yaxis": [{"opposite": False, "tickAmount": 6}],
                 "annotations": {
                     "yaxis": [
                         {
@@ -172,6 +173,18 @@ def _build_overview_view(
                     ],
                 },
             })
+            # Warning symbol when no data
+            for no_data_state in ["unavailable", "unknown"]:
+                row_cards.append({
+                    "type": "conditional",
+                    "conditions": [
+                        {"condition": "state", "entity": glucose_entity, "state": no_data_state},
+                    ],
+                    "card": {
+                        "type": "markdown",
+                        "content": "## ⚠\n\n**Kein Messwert**\nSensor nicht verfuegbar",
+                    },
+                })
 
         # Info: Glucose, Trend, Sync + today completeness (integrated)
         status_entities = []
@@ -415,25 +428,31 @@ def _build_stats_view(
             return f"{{{{ states('{entity_id}') | int }}}}"
 
         zone_parts = []
-        for key, emoji, label, boundary in [
-            ("time_very_high_pct", "\U0001f534", "Sehr hoch",
-             f"> {_threshold(very_high_ent)} mg/dL"),
-            ("time_high_pct", "\U0001f7e0", "Hoch",
-             f"{_threshold(high_ent)}-{_threshold(very_high_ent)} mg/dL"),
-            ("time_in_range_pct", "\U0001f7e2", "Zielbereich",
-             f"{_threshold(low_ent)}-{_threshold(high_ent)} mg/dL"),
-            ("time_low_pct", "\U0001f7e1", "Niedrig",
-             f"{_threshold(crit_low_ent)}-{_threshold(low_ent)} mg/dL"),
-            ("time_critical_low_pct", "\U0001f534", "Sehr niedrig",
-             f"< {_threshold(crit_low_ent)} mg/dL"),
+        for key, emoji, label in [
+            ("time_very_high_pct", "\U0001f534", "Sehr hoch"),
+            ("time_high_pct", "\U0001f7e0", "Hoch"),
+            ("time_in_range_pct", "\U0001f7e2", "Zielbereich"),
+            ("time_low_pct", "\U0001f7e1", "Niedrig"),
+            ("time_critical_low_pct", "\U0001f534", "Sehr niedrig"),
         ]:
             if key in ents:
                 zone_parts.append(
-                    f"{emoji} {{{{ states('{ents[key]}') }}}}% {label} ({boundary})"
+                    f"{emoji} {{{{ states('{ents[key]}') }}}}% {label}"
                 )
 
         if zone_parts:
-            zone_md = "### Zeit im Zielbereich\n\n" + "\n\n".join(zone_parts)
+            thresholds_note = (
+                f"_Schwellwerte: krit. < {_threshold(crit_low_ent)}"
+                f" | niedrig {_threshold(crit_low_ent)}\u2013{_threshold(low_ent)}"
+                f" | Ziel {_threshold(low_ent)}\u2013{_threshold(high_ent)}"
+                f" | hoch {_threshold(high_ent)}\u2013{_threshold(very_high_ent)}"
+                f" | sehr hoch > {_threshold(very_high_ent)} mg/dL_"
+            )
+            zone_md = (
+                "### Zeit im Zielbereich\n\n"
+                + "\n\n".join(zone_parts)
+                + "\n\n" + thresholds_note
+            )
             detail_entities = []
             for key, label in [
                 ("daily_insulin_total", "Insulin gesamt"),
@@ -493,6 +512,8 @@ def _build_stats_view(
                     "yaxis": [{
                         "min": 20,
                         "max": 350,
+                        "opposite": False,
+                        "tickAmount": 6,
                         "title": {"text": "mg/dL"},
                     }],
                     "annotations": {
