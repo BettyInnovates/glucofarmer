@@ -20,9 +20,9 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.6 (letzter commit: #6)
-**Deployed**: v1.3.3 (v1.3.4-v1.3.6 committed aber noch nicht in HA getestet/deployed)
-**Naechster Schritt**: Issue #7 – _last_valid_reading_time nach HA-Neustart wiederherstellen
+**Version**: v1.3.7 (letzter commit: #7)
+**Deployed**: v1.3.3 (v1.3.4-v1.3.7 committed aber noch nicht in HA getestet/deployed)
+**Naechster Schritt**: Issue #8 – Preset-Text im Config Flow unsichtbar
 
 ### Offene Issues (Reihenfolge = Prioritaet)
 1. ~~Tages-Zusammenfassung kommt nicht~~ -- FIXED (v1.3.2)
@@ -31,8 +31,8 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 4. ~~Datenvollstaendigkeit falsch berechnet~~ -- FIXED (v1.3.4)
 5. ~~Presets: Text unsichtbar + Logik kaputt~~ -- FIXED (v1.3.5)
 6. ~~Completeness auf Seite 1/3 vertauscht + Darstellung falsch~~ -- FIXED (v1.3.6)
+7. ~~Nach HA-Neustart lost_valid_reading_time verloren -> unknown bei Notification~~ -- FIXED (v1.3.7)
 -- Offene Bugs --
-7. BUG: Nach HA-Neustart lost_valid_reading_time verloren -> unknown bei Notification
 8. BUG: Preset-Text beim Anlegen im Config Flow unsichtbar (HA UI Problem)
 9. BE-Summe aktualisiert sich mit Verzoegerung nach Logging
 -- Dashboard Ueberarbeitung --

@@ -1,5 +1,14 @@
 # GlucoFarmer Changelog
 
+## v1.3.7 (18.02.2026)
+Fix #7: _last_valid_reading_time nach HA-Neustart wiederherstellen:
+- **coordinator.py**: Neue Methode `_restore_last_reading_time()` laedt beim
+  ersten `_async_update_data`-Aufruf nach dem Start den letzten Messzeitpunkt
+  aus dem persistenten Store (heute oder fallback letzte 24h via
+  `get_readings_for_range`). Flag `_store_restored` verhindert wiederholten
+  Zugriff. Folge: Notification zeigt korrektes "Keine Daten seit X min" statt
+  "unknown duration" auch direkt nach HA-Neustart.
+
 ## v1.3.6 (18.02.2026)
 Fix #6: Completeness Seite 1/3 vertauscht + Darstellung:
 - **Seite 1**: Zeigt jetzt `data_completeness_today` (seit Mitternacht) statt range.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
 
@@ -107,9 +107,28 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self._last_tracked_sensor_changed: datetime | None = None
         # Last time we had a valid glucose reading (used for age when sensor goes unavailable)
         self._last_valid_reading_time: datetime | None = None
+        # Restored from store on first run after restart (once is enough)
+        self._store_restored: bool = False
+
+    def _restore_last_reading_time(self) -> None:
+        """Restore last valid reading timestamp from persistent store after restart."""
+        readings = self.store.get_readings_today(self.pig_name)
+        if not readings:
+            now = datetime.now(tz=timezone.utc)
+            start = (now - timedelta(hours=24)).isoformat()
+            readings = self.store.get_readings_for_range(
+                self.pig_name, start, now.isoformat()
+            )
+        if readings:
+            last_ts = max(r["timestamp"] for r in readings)
+            self._last_valid_reading_time = datetime.fromisoformat(last_ts)
 
     async def _async_update_data(self) -> GlucoFarmerData:
         """Fetch data from Dexcom sensors and compute stats."""
+        if not self._store_restored:
+            self._restore_last_reading_time()
+            self._store_restored = True
+
         glucose_value = self._get_sensor_value(self.glucose_sensor_id)
         trend_value = self._get_sensor_state(self.trend_sensor_id)
 

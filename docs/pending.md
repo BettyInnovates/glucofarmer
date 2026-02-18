@@ -80,6 +80,14 @@ Werden bei Gelegenheit (Milestone, Deploy) eingearbeitet und dann geleert.
 - Moeglicherweise strings.json / translations fehlen oder falsch
 - Untersuchen: strings.json Eintraege fuer add_preset Step
 
+**#10 Completeness: expected zaehlt ab Mitternacht, nicht ab Integration-Start**
+- Verdacht: missed-Wert erscheint zu hoch, weil expected immer von 00:00 rechnet
+  (minutes_since_midnight / 5), aber der Store nur Readings ab Integration-Start enthaelt
+- Pruefen: actual * Laufzeit-Stunden * 12 vergleichen — stimmt es ueberein?
+- Pruefen: ob Timezone-Mismatch (UTC-Timestamps im Store vs. naive Localtime in expected-
+  Berechnung) zu falschen actual-Zahlungen fuehrt, besonders in den ersten Stunden nach Mitternacht
+- Design-Frage: soll expected ab Mitternacht oder ab erstem gespeicherten Reading heute rechnen?
+
 **#9 BE-Summe aktualisiert sich mit Verzoegerung**
 - Nach Logging: Coordinator-Refresh wird ausgeloest aber UI aktualisiert sich nicht sofort
 - Moeglicherweise State-Update-Timing in HA (Entity schreibt neuen State erst beim naechsten Poll)
