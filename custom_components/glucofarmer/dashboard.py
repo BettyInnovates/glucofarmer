@@ -424,6 +424,8 @@ def _build_stats_view(
         ]
 
         # 5-zone distribution as stacked horizontal bar chart
+        # data_generator reads current state directly (no history lookup).
+        # All 5 series use the same x-value (midnight) so they stack into one bar.
         zone_series = []
         for key, name, color in [
             ("time_critical_low_pct", "Kritisch niedrig", "#B71C1C"),
@@ -437,7 +439,7 @@ def _build_stats_view(
                     "entity": ents[key],
                     "name": name,
                     "color": color,
-                    "group_by": {"duration": "30min", "func": "last"},
+                    "data_generator": "return [[new Date().setHours(0,0,0,0), parseFloat(entity.state)]];",
                 })
 
         if zone_series:
@@ -445,7 +447,6 @@ def _build_stats_view(
                 "type": "custom:apexcharts-card",
                 "chart_type": "bar",
                 "stacked": True,
-                "graph_span": "30min",
                 "header": {
                     "show": True,
                     "title": "Zeit im Zielbereich",
