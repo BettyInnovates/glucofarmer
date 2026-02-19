@@ -14,5 +14,7 @@ venv/
 *.iml
 .idea/
 
-# Local Claude session notes (not for git)
+# Local Claude/project notes (not for git)
+CLAUDE.md
 CLAUDE.local.md
+docs/
