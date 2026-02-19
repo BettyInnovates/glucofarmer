@@ -20,23 +20,23 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.16 (noch nicht committed)
-**Deployed**: v1.3.13
-**Naechster Schritt**: v1.3.14 pushen + deployen, dann Seite 2 besprechen
+**Version**: v1.3.17 (noch nicht committed)
+**Deployed**: v1.3.16
+**Naechster Schritt**: v1.3.17 committen/deployen, dann Seite 2 besprechen
 
-### Was v1.3.14 enthaelt (bereit zum commit):
-- Seite 3: Stacked Bar Chart (apexcharts) statt Emoji-Zonentext
-- Seite 3: Threshold-Fussnote entfernt (war zu ueberladen)
-- Version auf 1.3.14
+### Was v1.3.17 enthaelt (bereit zum commit):
+- Gap-basierte Datenvollstaendigkeit (kein Wanduhr-expected mehr)
+- Timestamps lokal naive statt UTC gespeichert
+- timezone-Import entfernt, _READINGS_PER_HOUR durch _READING_INTERVAL_MINUTES ersetzt
 
-### Commit-Message fuer v1.3.14:
+### Commit-Message fuer v1.3.17:
 ```
-feat: Stacked Bar Chart fuer Zonenverteilung Seite 3 (v1.3.14)
+fix: Datenvollstaendigkeit gap-basiert statt Wanduhr-Hochrechnung (v1.3.17)
 
-Seite 3 zeigt Zeit im Zielbereich jetzt als gestapeltes horizontales
-Balkendiagramm (apexcharts). Fuenf Zonen farblich kodiert. Threshold-
-Fussnote entfernt (war zu ueberladen; spaetere Idee: kleine Grenzwerte
-am Balkendiagramm links).
+Coverage berechnet sich jetzt aus Luecken zwischen gespeicherten Readings
+statt aus Wanduhr-expected ab Mitternacht. HA-Neustarts erzeugen keine
+falschen missed-Werte mehr. Zwei Schweine auf demselben Sensor zeigen
+jetzt identische Coverage. Timestamps lokal naive statt UTC gespeichert.
 ```
 
 ### Offene Issues (Reihenfolge = Prioritaet)
@@ -54,10 +54,8 @@ am Balkendiagramm links).
 12. ~~Graph-Fixes (6h Seite 1, Y-Achse)~~ -- FIXED (v1.3.11/v1.3.13)
 13. ~~Coordinator-Polling 5min zu langsam nach Restart~~ -- FIXED (v1.3.12, zurueck auf 60s)
 14. ~~Seite 3: Stacked Balkendiagramm Zonen~~ -- FIXED (v1.3.14)
+A. ~~Coverage/missed: Wanduhr-expected ab Mitternacht, HA-Neustart blaest Zahl auf~~ -- FIXED (v1.3.17)
 -- Offene Bugs --
-A. Coverage/missed: expected zaehlt ab Mitternacht, nicht ab erstem Reading heute
-   → Verdacht: missed erscheint zu hoch; pruefen ob Design-Aenderung noetig
-   → Details in pending.md
 B. Preset-Logik hat noch Fehler (wird bei Seite-2-Ueberarbeitung gefixt)
 -- Dashboard Ueberarbeitung --
 15. Seite 2: Layout/Workflow/Logik komplett ueberarbeiten -- MUSS BESPROCHEN WERDEN
@@ -71,6 +69,39 @@ V. Sync-Anzeige Echtzeit (dashboard template -- kann Claude selbststaendig mache
 W. Schwellwerte global fuer alle Schweine (aktuell pro Schwein; besprechen wenn noetig)
 X. Dexcom Share Delay ~12min -> no_data Alarm default_timeout ueberdenken
 -- Details in docs/pending.md --
+
+## Architektur-Grundsatzentscheidungen
+
+Diese Entscheidungen sind BINDEND und duerfen nicht ohne explizite Absprache
+mit dem User geaendert werden.
+
+### Datenspeicherung (beschlossen 19.02.2026)
+
+| Datentyp | Speicherort | Begruendung |
+|----------|-------------|-------------|
+| Glukose-Readings | **HA Recorder** (SQLite, bereits vorhanden) | Dexcom-Sensor laeuft sowieso, Daten sind schon da |
+| Trend-Werte | **HA Recorder** (SQLite, bereits vorhanden) | Gleiche Begruendung wie Glukose |
+| Insulin-Events | **GlucoFarmer Store** (eigener JSON) | Braucht benutzerdefinierten Timestamp (rueckdatieren moeglich) |
+| Mahlzeiten-Events | **GlucoFarmer Store** (eigener JSON) | Gleiche Begruendung wie Insulin |
+| Config/Mapping (Pig<->Sensor) | **GlucoFarmer Config Entry** | Wie bisher |
+
+**Kernprinzip**: Glukose und Trend NICHT doppelt speichern. HA Recorder ist
+die Single Source of Truth fuer alle CGM-Messwerte.
+
+**Warum Insulin/Mahlzeiten NICHT im Recorder**: HA Recorder speichert den
+Zeitpunkt der State-Aenderung in HA -- dieser ist unveraenderbar. Fuer Events
+die rueckdatiert werden koennen muessen ("Insulin vor 15min gegeben") brauchen
+wir einen eigenen `timestamp`-Feld getrennt von `created_at`.
+
+**Langzeit-Speicherung**: HA Recorder muss mit `purge_keep_days: 730` (o.ae.)
+konfiguriert werden damit Studiendaten nicht nach 10 Tagen geloescht werden.
+Dies ist eine einmalige manuelle Konfiguration in `configuration.yaml`.
+
+### Noch umzusetzen (keine Prioritaet gesetzt)
+- GlucoFarmer eigenen Readings-Store abloesen: Zonen-Statistiken und Coverage
+  aus HA Recorder berechnen statt aus eigenem JSON-Store
+- CSV-Export aus Recorder (Glukose+Trend) + eigenem Store (Events) kombiniert
+- Details in docs/pending.md
 
 ## Bekannte Einschraenkungen / TODOs
 

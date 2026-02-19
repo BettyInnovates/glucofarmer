@@ -23,15 +23,9 @@ Werden bei Gelegenheit (Milestone, Deploy) eingearbeitet und dann geleert.
 
 ## Offene Bugs
 
-### A. Coverage/missed: expected zaehlt ab Mitternacht, nicht ab erstem Reading
-- expected = minutes_since_midnight / 5 (immer ab 00:00)
-- actual = Readings im Store seit 00:00 UTC (timezone-mismatch moeglich!)
-- Verdacht: missed erscheint zu hoch wenn Integration nicht seit Mitternacht laeuft
-- Pruefen: actual * Laufzeit-Stunden * 12 -- stimmt das ueberein?
-- Timezone-Problem: UTC-Timestamps im Store vs. naive Localtime in expected-Berechnung
-  (Readings von 00:00-01:00 local/CET haben UTC-Datum von gestern -> werden nicht gezaehlt)
-- Design-Frage: expected ab Mitternacht ODER ab erstem gespeicherten Reading heute?
-- User beobachtet und meldet zurueck
+### A. ~~Coverage/missed: expected zaehlt ab Mitternacht~~ -- FIXED (v1.3.17)
+- Gap-basierte Berechnung statt Wanduhr-expected
+- Timestamps jetzt lokal naive (statt UTC mit +00:00-Offset)
 
 ### B. Preset-Logik hat noch Fehler
 - Config Flow rendert jetzt korrekt (v1.3.8+v1.3.10)
@@ -243,6 +237,64 @@ Wichtigste Erkenntnisse fuer GlucoFarmer:
 3. **Progressive Disclosure**: Ist es wichtig genug, neue Entitaeten dafuer anzulegen, oder reicht ein saubereres Layout mit allen Formularen sichtbar?
 
 4. **Archiv-Bestaetigung**: Wuerde ein Zwei-Schritt-Prozess (Event aus Dropdown auswaehlen → dann Bestaetigen) reichen?
+
+---
+
+---
+
+## Architektur-Grundsatzentscheidung: Datenspeicherung (19.02.2026)
+
+### Beschlossen
+
+**Glukose + Trend → HA Recorder (SQLite)**
+- Dexcom-Integration speichert beide Sensoren bereits automatisch
+- HA Recorder ist Single Source of Truth fuer alle CGM-Messwerte
+- GlucoFarmer darf diese Daten NICHT doppelt in eigenem Store speichern
+- Graph (apexcharts) liest bereits aus Recorder -- das ist korrekt so
+
+**Insulin + Mahlzeiten → GlucoFarmer eigener Store (JSON)**
+- Einziger Grund: Benutzer kann Zeitstempel manuell setzen / rueckdatieren
+- HA Recorder speichert nur den Moment der State-Aenderung -- nicht aenderbar
+- Datenmodell: `timestamp` (wann passiert) + `created_at` (wann geloggt) getrennt
+
+**Config + Mapping → GlucoFarmer Config Entry**
+- Welcher Sensor gehoert zu welchem Pig -- bleibt wie bisher
+
+### Voraussetzung fuer Langzeit-Studie
+HA `configuration.yaml` muss einmalig angepasst werden:
+```yaml
+recorder:
+  purge_keep_days: 730  # 2 Jahre, oder Studiendauer + Puffer
+```
+Ohne diese Einstellung loescht HA Recorder Daten nach 10 Tagen!
+
+### Was sich im Code aendern muss (noch nicht implementiert, kein Termin)
+
+**coordinator.py:**
+- `_compute_zone_stats()`: statt eigenem Store -> HA Recorder via
+  `homeassistant.components.recorder.history.get_significant_states()`
+- `_compute_data_completeness_today/range()`: ebenfalls aus Recorder
+- `_track_reading()`: komplett entfernen (kein eigenes Readings-Speichern mehr)
+
+**store.py:**
+- `async_log_reading()`, `get_readings_today()`, `get_readings_for_range()`,
+  `get_readings_for_date()`, `async_flush_readings()`: alle entfernen
+- Nur Events (Insulin, Mahlzeiten) behalten
+
+**GlucoFarmerData (coordinator.py):**
+- `readings_today_actual`, `readings_today_expected` etc.: aus Recorder berechnen
+- `time_*_pct`: aus Recorder berechnen
+
+**Neuer CSV-Export (noch nicht implementiert):**
+- Kombiniert Recorder-Daten (Glukose+Trend) + Store-Events (Insulin+Mahlzeiten)
+- Eine Zeile pro Ereignis, chronologisch sortiert
+- Format Clarity-aehnlich (kompatibel mit externen Tools)
+- Erreichbar ueber Samba / File Editor fuer Backup
+
+### Warum noch nicht implementiert
+Dieser Umbau ist gross (betrifft coordinator.py, store.py, alle Statistiken).
+Wird in einer eigenen Session besprochen und umgesetzt -- erst nach Seite-2-Redesign
+oder als separater Meilenstein.
 
 ---
 

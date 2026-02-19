@@ -1,5 +1,24 @@
 # GlucoFarmer Changelog
 
+## v1.3.17 (19.02.2026)
+Fix: Datenvollstaendigkeit gap-basiert statt Wanduhr-Hochrechnung (v1.3.17):
+- **`coordinator.py`**: `_compute_data_completeness_today` und `_compute_data_completeness_range`
+  verwendeten `expected = minutes_since_midnight / 5` (Wanduhr) bzw. `hours * 12` als Basis.
+  Das fuehrt nach jedem HA-Neustart zu ueberhoeht gemeldeten `missed`-Werten weil
+  `expected` ab Mitternacht zaehlt, `actual` aber nur Readings enthaelt die GlucoFarmer
+  selbst geloggt hat. Zwei Schweine auf demselben Sensor zeigten unterschiedliche Coverage.
+- **Neuer Ansatz -- Gap-basiert**: Alle gespeicherten Readings werden nach Zeitstempel
+  sortiert. Fuer jede Luecke >10 min zwischen aufeinanderfolgenden Readings werden die
+  fehlenden 5-Minuten-Slots gezaehlt (`missed_in_gap = round(gap / 5) - 1`).
+  `coverage = actual / (actual + missed) * 100`.
+  Neustart-Luecken erzeugen keine falschen `missed`-Eintraege sofern der Sensor
+  danach wieder normal weiterlaeuft.
+- **`_track_reading`**: Timestamps werden jetzt als lokale naive Zeit gespeichert
+  (statt UTC mit +00:00-Offset), konsistent mit Datums-Filtern in `store.py`.
+  Bestehende UTC-Timestamps werden beim Gap-Berechnen automatisch normalisiert.
+- **`timezone`-Import entfernt**, `_READINGS_PER_HOUR` durch `_READING_INTERVAL_MINUTES = 5`
+  ersetzt (semantisch klarer).
+
 ## v1.3.16 (19.02.2026)
 Fix: FCM Android-Priority-Werte ungueltig (v1.3.16):
 - **`__init__.py`**: `_send_notification` verwendete `"low"`, `"default"` und `"critical"`

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -35,7 +35,7 @@ from .store import GlucoFarmerStore
 _LOGGER = logging.getLogger(__name__)
 
 _SCAN_INTERVAL = timedelta(seconds=60)
-_READINGS_PER_HOUR = 12  # Dexcom reads every 5 minutes
+_READING_INTERVAL_MINUTES = 5  # Dexcom sends one reading every 5 minutes
 
 type GlucoFarmerConfigEntry = ConfigEntry[GlucoFarmerCoordinator]
 
@@ -114,7 +114,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         """Restore last valid reading timestamp from persistent store after restart."""
         readings = self.store.get_readings_today(self.pig_name)
         if not readings:
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now()
             start = (now - timedelta(hours=24)).isoformat()
             readings = self.store.get_readings_for_range(
                 self.pig_name, start, now.isoformat()
@@ -255,8 +255,9 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             return
 
         self._last_tracked_sensor_changed = sensor_changed
+        # Store as local naive time so all timestamps are consistent with date filters
         timestamp = (
-            sensor_changed.isoformat()
+            sensor_changed.astimezone().replace(tzinfo=None).isoformat()
             if sensor_changed
             else datetime.now().isoformat()
         )
@@ -318,27 +319,54 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             round(very_high / total * 100, 1),
         )
 
+    def _gap_based_completeness(
+        self, readings: list[dict[str, Any]]
+    ) -> tuple[float, int, int]:
+        """Calculate completeness from gaps between consecutive readings.
+
+        Returns (pct, actual, total_expected) where total_expected = actual + missed.
+        Missed readings are derived from gaps > 10 min between stored readings.
+        This approach is database-driven: HA restarts do not inflate the missed count,
+        and two pigs on the same sensor always produce identical results.
+        """
+        actual = len(readings)
+        if actual == 0:
+            return 0.0, 0, 0
+        if actual == 1:
+            return 100.0, 1, 1
+
+        def _to_local_naive(ts: str) -> datetime:
+            dt = datetime.fromisoformat(ts)
+            # Normalize UTC-aware (old data) and naive local (new data) to naive local
+            if dt.tzinfo is not None:
+                dt = dt.astimezone().replace(tzinfo=None)
+            return dt
+
+        timestamps = sorted(_to_local_naive(r["timestamp"]) for r in readings)
+
+        missed = 0
+        for i in range(1, len(timestamps)):
+            gap_minutes = (timestamps[i] - timestamps[i - 1]).total_seconds() / 60
+            # 5-min gap = 1 reading (normal), 10-min = 2 expected → 1 missed
+            missed_in_gap = max(0, round(gap_minutes / _READING_INTERVAL_MINUTES) - 1)
+            missed += missed_in_gap
+
+        total_expected = actual + missed
+        pct = round(actual / total_expected * 100, 1)
+        return pct, actual, total_expected
+
     def _compute_data_completeness_today(self) -> tuple[float, int, int]:
-        """Compute data completeness since local midnight. Returns (pct, actual, expected)."""
-        now = datetime.now()
-        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        minutes_since_midnight = (now - midnight).total_seconds() / 60.0
-        expected = max(1, round(minutes_since_midnight / 5))
-        actual = len(self.store.get_readings_today(self.pig_name))
-        pct = round(min(actual / expected * 100, 100.0), 1)
-        return pct, actual, expected
+        """Gap-based completeness since local midnight. Returns (pct, actual, total_expected)."""
+        readings = self.store.get_readings_today(self.pig_name)
+        return self._gap_based_completeness(readings)
 
     def _compute_data_completeness_range(self, hours: int) -> tuple[float, int, int]:
-        """Compute data completeness for selected chart timerange. Returns (pct, actual, expected)."""
+        """Gap-based completeness for selected chart timerange. Returns (pct, actual, total_expected)."""
         now = datetime.now()
         start = (now - timedelta(hours=hours)).isoformat()
         end = now.isoformat()
-        actual = len(self.store.get_readings_for_range(self.pig_name, start, end))
-        expected = hours * _READINGS_PER_HOUR
-        if expected <= 0:
-            return 100.0, actual, 0
-        pct = round(min(actual / expected * 100, 100.0), 1)
-        return pct, actual, expected
+        readings = self.store.get_readings_for_range(self.pig_name, start, end)
+        return self._gap_based_completeness(readings)
 
     def _compute_daily_insulin(self) -> float:
         """Compute total insulin IU administered today."""
