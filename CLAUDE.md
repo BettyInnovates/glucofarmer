@@ -20,9 +20,9 @@ Eigenstaendiges HACS-Plugin, nutzt Dexcom-Integration (unveraendert).
 
 ## Aktueller Stand
 
-**Version**: v1.3.14 (noch nicht committed -- Commit-Message bereit, User muss noch pushen)
-**Deployed**: v1.3.13 (v1.3.14 noch ausstehend)
-**Naechster Schritt**: v1.3.14 committen/pushen, dann Seite 2 besprechen
+**Version**: v1.3.15 (noch nicht committed)
+**Deployed**: v1.3.13
+**Naechster Schritt**: v1.3.14 pushen + deployen, dann Seite 2 besprechen
 
 ### Was v1.3.14 enthaelt (bereit zum commit):
 - Seite 3: Stacked Bar Chart (apexcharts) statt Emoji-Zonentext

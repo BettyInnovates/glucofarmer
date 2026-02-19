@@ -1,5 +1,12 @@
 # GlucoFarmer Changelog
 
+## v1.3.15 (19.02.2026)
+Fix: Tagesreport schlaegt fehl mit NameError (EVENT_TYPE_INSULIN nicht importiert):
+- **`__init__.py`**: `EVENT_TYPE_FEEDING` und `EVENT_TYPE_INSULIN` fehlten in den
+  Importen aus `const.py`. `_send_daily_report` verwendet beide beim Abrufen der
+  gestrigen Events aus dem Store -- ohne den Import crasht die Funktion mit
+  `NameError: name 'EVENT_TYPE_INSULIN' is not defined` und der Report wird nicht gesendet.
+
 ## v1.3.14 (18.02.2026)
 Seite 3: Stacked Bar Chart fuer Zonenverteilung, Fussnote entfernt:
 - **Stacked Bar Chart** -- "Zeit im Zielbereich" zeigt jetzt ein
