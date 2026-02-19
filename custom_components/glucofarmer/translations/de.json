@@ -1,14 +1,14 @@
 {
   "config": {
     "abort": {
-      "already_configured": "Dieses Schwein ist bereits konfiguriert."
+      "already_configured": "Dieses Profil ist bereits konfiguriert."
     },
     "step": {
       "user": {
-        "title": "Schwein-Profil einrichten",
-        "description": "Neues Schwein fuer die Glukose-Ueberwachung konfigurieren.",
+        "title": "Profil einrichten",
+        "description": "Neues Profil fuer die Glukose-Ueberwachung konfigurieren.",
         "data": {
-          "pig_name": "Schweinsname",
+          "pig_name": "Profilname",
           "glucose_sensor": "Dexcom Glukose-Sensor",
           "trend_sensor": "Dexcom Trend-Sensor"
         }
@@ -28,7 +28,7 @@
       },
       "manage_insulin_products": {
         "title": "Insulinprodukte",
-        "description": "Insulinprodukte fuer dieses Schwein hinzufuegen oder entfernen.",
+        "description": "Insulinprodukte fuer dieses Profil hinzufuegen oder entfernen.",
         "menu_options": {
           "add_insulin_product": "Insulinprodukt hinzufuegen",
           "remove_insulin_product": "Insulinprodukt entfernen"
@@ -49,7 +49,7 @@
       },
       "manage_feeding_categories": {
         "title": "Fuetterungskategorien",
-        "description": "Fuetterungskategorien fuer dieses Schwein hinzufuegen oder entfernen.",
+        "description": "Fuetterungskategorien fuer dieses Profil hinzufuegen oder entfernen.",
         "menu_options": {
           "add_feeding_category": "Fuetterungskategorie hinzufuegen",
           "remove_feeding_category": "Fuetterungskategorie entfernen"
@@ -69,7 +69,7 @@
       },
       "manage_presets": {
         "title": "Presets",
-        "description": "Schnelleingabe-Presets fuer dieses Schwein hinzufuegen oder entfernen.",
+        "description": "Schnelleingabe-Presets fuer dieses Profil hinzufuegen oder entfernen.",
         "menu_options": {
           "add_preset": "Preset hinzufuegen",
           "remove_preset": "Preset entfernen"

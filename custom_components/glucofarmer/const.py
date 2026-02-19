@@ -6,7 +6,7 @@ DOMAIN = "glucofarmer"
 PLATFORMS = [Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.TEXT]
 
 # Config keys
-CONF_PIG_NAME = "pig_name"
+CONF_SUBJECT_NAME = "pig_name"
 CONF_GLUCOSE_SENSOR = "glucose_sensor"
 CONF_TREND_SENSOR = "trend_sensor"
 
@@ -34,7 +34,7 @@ STATUS_NO_DATA = "no_data"
 DEFAULT_INSULIN_PRODUCTS: list[dict[str, str]] = [
     {"name": "NovoRapid", "category": "short"},
     {"name": "Lantus", "category": "long"},
-    {"name": "StudyDrug-X", "category": "experimental"},
+    {"name": "Experimental-1", "category": "experimental"},
 ]
 
 # Default feeding categories
@@ -71,7 +71,7 @@ SERVICE_LOG_FEEDING = "log_feeding"
 SERVICE_DELETE_EVENT = "delete_event"
 
 # Attributes
-ATTR_PIG_NAME = "pig_name"
+ATTR_SUBJECT_NAME = "subject_name"
 ATTR_PRODUCT = "product"
 ATTR_AMOUNT = "amount"
 ATTR_TIMESTAMP = "timestamp"

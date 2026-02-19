@@ -7,10 +7,10 @@ custom_components/glucofarmer/
   manifest.json       -- Plugin-Metadaten (domain: glucofarmer)
   __init__.py          -- Setup, Service-Registrierung, Alarm-System, taeglicher Report
   const.py             -- Alle Konstanten, Defaults, Domain
-  config_flow.py       -- ConfigFlow (Schwein einrichten) + OptionsFlow (Kataloge, Presets)
+  config_flow.py       -- ConfigFlow (Profil einrichten) + OptionsFlow (Kataloge, Presets)
   coordinator.py       -- DataUpdateCoordinator: liest Dexcom-Sensoren, berechnet 5-Zonen-Stats
-  sensor.py            -- 12 Sensor-Entities pro Schwein (inkl. 5-Zonen + Events)
-  number.py            -- 7 Number-Entities pro Schwein (Schwellwerte + Eingabefelder)
+  sensor.py            -- 12 Sensor-Entities pro Profil (inkl. 5-Zonen + Events)
+  number.py            -- 7 Number-Entities pro Profil (Schwellwerte + Eingabefelder)
   button.py            -- Preset-Buttons + Aktions-Buttons (Fuetterung/Insulin/Archiv)
   select.py            -- 3 Select-Entities (Fuetterungskategorie, Insulin-Produkt, Chart-Zeitraum)
   text.py              -- 2 Text-Entities (Event-Zeitstempel, Archiv-Event-ID)
@@ -24,25 +24,25 @@ custom_components/glucofarmer/
 
 ## Kernkonzepte
 
-### Config Entry = Ein Schwein
-Jedes Schwein ist ein eigener Config Entry mit:
-- `pig_name`: Name (z.B. "Piggy-01")
+### Config Entry = Ein Profil
+Jedes Profil ist ein eigener Config Entry mit:
+- `pig_name`: Profilname (z.B. "Profil-01")
 - `glucose_sensor`: Entity-ID des Dexcom Glucose-Sensors
 - `trend_sensor`: Entity-ID des Dexcom Trend-Sensors
 
 ### Globale Kataloge (Options Flow)
-Pro Config Entry (Schwein) konfigurierbar:
+Pro Config Entry konfigurierbar:
 - **Insulin-Produkte**: Liste mit {name, category (short/long/experimental)}
-- **Fuetterungskategorien**: Liste von Strings (breakfast, dinner, reward, etc.)
+- **Kategorien**: Liste von Strings (breakfast, dinner, reward, etc.)
 - **Presets**: Liste mit {name, type (insulin/feeding), product/category, amount}
 
 ### Event-Speicherung (store.py)
 - Events + Readings in `.storage/glucofarmer_events`
 - JSON-Format via `homeassistant.helpers.storage.Store`
-- Events: UUID, Typ, Schwein, Menge, Zeitstempel, Notiz; Soft-Delete (archived flag)
+- Events: UUID, Typ, Profil, Menge, Zeitstempel, Notiz; Soft-Delete (archived flag)
 - Readings: pig_name, value, status, timestamp; Batch-Save alle 10 Readings
 
-## Entities pro Schwein
+## Entities pro Profil
 
 **12 Sensoren:**
 | Key | Beschreibung | Einheit |
@@ -96,8 +96,8 @@ Pro Config Entry (Schwein) konfigurierbar:
 
 ## Services
 
-- `glucofarmer.log_insulin` -- Schwein, Produkt, Menge (IU), opt. Zeitstempel, opt. Notiz
-- `glucofarmer.log_feeding` -- Schwein, Menge (BE), Kategorie, opt. Beschreibung, opt. Zeitstempel
+- `glucofarmer.log_insulin` -- Profil, Produkt, Menge (IU), opt. Zeitstempel, opt. Notiz
+- `glucofarmer.log_feeding` -- Profil, Menge (BE), Kategorie, opt. Beschreibung, opt. Zeitstempel
 - `glucofarmer.delete_event` -- Event-ID (UUID)
 
 ## Alarm-System (__init__.py)
@@ -111,8 +111,8 @@ Pro Config Entry (Schwein) konfigurierbar:
 ## Taeglicher Report (__init__.py)
 
 - Prueft jede Minute ob Mitternacht (00:00-00:01)
-- Sendet pro Schwein: Werte, 5-Zonen-Verteilung mit Schwellwerten, Completeness, Summen
-- Hebt Notfallrationen und Interventionen hervor
+- Sendet pro Profil: Werte, 5-Zonen-Verteilung mit Schwellwerten, Completeness, Summen
+- Hebt besondere Ereignisse hervor
 - Geht an `notify.notify` + persistent_notification
 
 ## Datenfluss

@@ -6,7 +6,7 @@ Fix: Datenvollstaendigkeit gap-basiert statt Wanduhr-Hochrechnung (v1.3.17):
   verwendeten `expected = minutes_since_midnight / 5` (Wanduhr) bzw. `hours * 12` als Basis.
   Das fuehrt nach jedem HA-Neustart zu ueberhoeht gemeldeten `missed`-Werten weil
   `expected` ab Mitternacht zaehlt, `actual` aber nur Readings enthaelt die GlucoFarmer
-  selbst geloggt hat. Zwei Schweine auf demselben Sensor zeigten unterschiedliche Coverage.
+  selbst geloggt hat. Zwei Profile auf demselben Sensor zeigten unterschiedliche Coverage.
 - **Neuer Ansatz -- Gap-basiert**: Alle gespeicherten Readings werden nach Zeitstempel
   sortiert. Fuer jede Luecke >10 min zwischen aufeinanderfolgenden Readings werden die
   fehlenden 5-Minuten-Slots gezaehlt (`missed_in_gap = round(gap / 5) - 1`).
@@ -163,7 +163,7 @@ Dexcom State-Listener fuer minimale Latenz:
 - **Alarm-System erweitert** -- `very_high` Status wird jetzt erkannt und loest Alarm
   mit priority=critical aus (wie critical_low).
 - **Taeglicher Report auf 5 Zonen** -- Report zeigt jetzt alle 5 Zonen mit
-  Prozentwerten und die aktuell konfigurierten Schwellwerte pro Schwein.
+  Prozentwerten und die aktuell konfigurierten Schwellwerte pro Profil.
 - **dashboard.yaml aktualisiert** -- Statische Referenz auf v1.3.0 Stand gebracht.
 
 ## v1.2.1 (17.02.2026)
@@ -193,15 +193,15 @@ Persistente Glucose-Speicherung + retrospektive Statistik:
 - **__init__.py: Readings-Flush bei Shutdown** -- `async_unload_entry` flusht
   gepufferte Readings bevor HA herunterfaehrt.
 - **Daten ueberleben HA-Neustarts** -- Alle Glucose-Werte und Events persistent.
-- **Beliebige Zeitbereiche abfragbar** -- `get_readings_for_range(pig, start, end)`
+- **Beliebige Zeitbereiche abfragbar** -- `get_readings_for_range(subject, start, end)`
   ermoeglicht Dashboard-Queries ueber beliebige Zeitraeume.
 
 ## v1.1.0 (17.02.2026)
 Auto-generiertes dynamisches Dashboard:
 - **Neues File: `dashboard.py`** -- Generiert Lovelace Dashboard automatisch
-  basierend auf konfigurierten Schweinen. Verwendet HA Lovelace Storage API.
+  basierend auf konfigurierten Profilen. Verwendet HA Lovelace Storage API.
 - **Dashboard wird automatisch erstellt** beim ersten Setup (erscheint in Sidebar)
-- **Dashboard aktualisiert sich** bei Schwein hinzufuegen/entfernen und Options-Aenderungen
+- **Dashboard aktualisiert sich** bei Profil hinzufuegen/entfernen und Options-Aenderungen
 - **4 Tabs**: Uebersicht, Eingabe, Statistiken, Einstellungen (als echte Reiter)
 - **ApexCharts Integration**: Glucose-Verlauf mit farbigen Schwellwert-Zonen
 - **Entity-IDs dynamisch** aus Entity Registry ermittelt (kein Hardcoding)

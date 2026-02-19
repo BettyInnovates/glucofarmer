@@ -1,14 +1,14 @@
 {
   "config": {
     "abort": {
-      "already_configured": "This pig is already configured."
+      "already_configured": "This profile is already configured."
     },
     "step": {
       "user": {
-        "title": "Set up pig profile",
-        "description": "Configure a new pig for glucose monitoring.",
+        "title": "Set up profile",
+        "description": "Configure a new profile for glucose monitoring.",
         "data": {
-          "pig_name": "Pig name",
+          "pig_name": "Profile name",
           "glucose_sensor": "Dexcom glucose sensor",
           "trend_sensor": "Dexcom trend sensor"
         }
@@ -28,7 +28,7 @@
       },
       "manage_insulin_products": {
         "title": "Insulin products",
-        "description": "Add or remove insulin products for this pig.",
+        "description": "Add or remove insulin products for this profile.",
         "menu_options": {
           "add_insulin_product": "Add insulin product",
           "remove_insulin_product": "Remove insulin product"
@@ -49,7 +49,7 @@
       },
       "manage_feeding_categories": {
         "title": "Feeding categories",
-        "description": "Add or remove feeding categories for this pig.",
+        "description": "Add or remove feeding categories for this profile.",
         "menu_options": {
           "add_feeding_category": "Add feeding category",
           "remove_feeding_category": "Remove feeding category"
@@ -69,7 +69,7 @@
       },
       "manage_presets": {
         "title": "Presets",
-        "description": "Add or remove quick-input presets for this pig.",
+        "description": "Add or remove quick-input presets for this profile.",
         "menu_options": {
           "add_preset": "Add preset",
           "remove_preset": "Remove preset"

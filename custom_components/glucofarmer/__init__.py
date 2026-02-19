@@ -1,7 +1,4 @@
-"""GlucoFarmer integration for Home Assistant.
-
-Preclinical CGM monitoring for diabetized pigs.
-"""
+"""GlucoFarmer integration for Home Assistant."""
 
 from __future__ import annotations
 
@@ -23,10 +20,10 @@ from .const import (
     ATTR_DESCRIPTION,
     ATTR_EVENT_ID,
     ATTR_NOTE,
-    ATTR_PIG_NAME,
+    ATTR_SUBJECT_NAME,
     ATTR_PRODUCT,
     ATTR_TIMESTAMP,
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_LOW_THRESHOLD,
@@ -53,7 +50,7 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVICE_LOG_INSULIN_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_PIG_NAME): cv.string,
+        vol.Required(ATTR_SUBJECT_NAME): cv.string,
         vol.Required(ATTR_PRODUCT): cv.string,
         vol.Required(ATTR_AMOUNT): vol.Coerce(float),
         vol.Optional(ATTR_TIMESTAMP): cv.string,
@@ -63,7 +60,7 @@ SERVICE_LOG_INSULIN_SCHEMA = vol.Schema(
 
 SERVICE_LOG_FEEDING_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_PIG_NAME): cv.string,
+        vol.Required(ATTR_SUBJECT_NAME): cv.string,
         vol.Required(ATTR_AMOUNT): vol.Coerce(float),
         vol.Required(ATTR_CATEGORY): cv.string,
         vol.Optional(ATTR_DESCRIPTION): cv.string,
@@ -77,7 +74,7 @@ SERVICE_DELETE_EVENT_SCHEMA = vol.Schema(
     }
 )
 
-# Alarm tracking per pig
+# Alarm tracking per subject
 _alarm_state: dict[str, dict[str, bool]] = {}
 # High glucose delay tracking
 _high_glucose_since: dict[str, datetime | None] = {}
@@ -122,14 +119,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
         _register_services(hass)
 
     # Set up alarm monitoring
-    pig_name = entry.data[CONF_PIG_NAME]
-    _alarm_state.setdefault(pig_name, {
+    subject_name = entry.data[CONF_SUBJECT_NAME]
+    _alarm_state.setdefault(subject_name, {
         "low_notified": False,
         "critical_low_notified": False,
         "high_notified": False,
         "no_data_notified": False,
     })
-    _high_glucose_since.setdefault(pig_name, None)
+    _high_glucose_since.setdefault(subject_name, None)
 
     unsub = coordinator.async_add_listener(
         lambda: _check_alarms(hass, coordinator)
@@ -163,9 +160,9 @@ async def _async_options_updated(
 
 async def async_unload_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) -> bool:
     """Unload a config entry."""
-    pig_name = entry.data[CONF_PIG_NAME]
-    _alarm_state.pop(pig_name, None)
-    _high_glucose_since.pop(pig_name, None)
+    subject_name = entry.data[CONF_SUBJECT_NAME]
+    _alarm_state.pop(subject_name, None)
+    _high_glucose_since.pop(subject_name, None)
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
@@ -183,7 +180,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry)
             hass.data[DOMAIN]["daily_report_unsub"]()
         hass.data.pop(DOMAIN, None)
 
-    # Update dashboard to remove the unloaded pig
+    # Update dashboard to remove the unloaded subject
     if remaining:
         await async_update_dashboard(hass)
 
@@ -198,7 +195,7 @@ def _register_services(hass: HomeAssistant) -> None:
         """Handle log_insulin service call."""
         store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
         event_id = await store.async_log_insulin(
-            pig_name=call.data[ATTR_PIG_NAME],
+            subject_name=call.data[ATTR_SUBJECT_NAME],
             product=call.data[ATTR_PRODUCT],
             amount=call.data[ATTR_AMOUNT],
             timestamp=call.data.get(ATTR_TIMESTAMP),
@@ -206,20 +203,20 @@ def _register_services(hass: HomeAssistant) -> None:
         )
         _LOGGER.info("Logged insulin event %s", event_id)
         # Refresh coordinators to update daily totals
-        await _refresh_coordinator_for_pig(hass, call.data[ATTR_PIG_NAME])
+        await _refresh_coordinator_for_subject(hass, call.data[ATTR_SUBJECT_NAME])
 
     async def handle_log_feeding(call: ServiceCall) -> None:
         """Handle log_feeding service call."""
         store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
         event_id = await store.async_log_feeding(
-            pig_name=call.data[ATTR_PIG_NAME],
+            subject_name=call.data[ATTR_SUBJECT_NAME],
             amount=call.data[ATTR_AMOUNT],
             category=call.data[ATTR_CATEGORY],
             description=call.data.get(ATTR_DESCRIPTION),
             timestamp=call.data.get(ATTR_TIMESTAMP),
         )
         _LOGGER.info("Logged feeding event %s", event_id)
-        await _refresh_coordinator_for_pig(hass, call.data[ATTR_PIG_NAME])
+        await _refresh_coordinator_for_subject(hass, call.data[ATTR_SUBJECT_NAME])
 
     async def handle_delete_event(call: ServiceCall) -> None:
         """Handle delete_event service call."""
@@ -245,11 +242,11 @@ def _register_services(hass: HomeAssistant) -> None:
     )
 
 
-async def _refresh_coordinator_for_pig(hass: HomeAssistant, pig_name: str) -> None:
-    """Refresh the coordinator for a specific pig."""
+async def _refresh_coordinator_for_subject(hass: HomeAssistant, subject_name: str) -> None:
+    """Refresh the coordinator for a specific subject."""
     for entry in hass.config_entries.async_entries(DOMAIN):
         if (
-            entry.data.get(CONF_PIG_NAME) == pig_name
+            entry.data.get(CONF_SUBJECT_NAME) == subject_name
             and hasattr(entry, "runtime_data")
             and entry.runtime_data
         ):
@@ -262,10 +259,10 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
     if coordinator.data is None:
         return
 
-    pig_name = coordinator.pig_name
+    subject_name = coordinator.subject_name
     status = coordinator.data.glucose_status
     glucose = coordinator.data.glucose_value
-    state = _alarm_state.get(pig_name)
+    state = _alarm_state.get(subject_name)
     if state is None:
         return
 
@@ -276,8 +273,8 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
         hass.async_create_task(
             _send_notification(
                 hass,
-                title=f"CRITICAL: {pig_name} glucose critically low!",
-                message=f"{pig_name} glucose is {glucose} mg/dL - CRITICAL LOW!",
+                title=f"CRITICAL: {subject_name} glucose critically low!",
+                message=f"{subject_name} glucose is {glucose} mg/dL - CRITICAL LOW!",
                 priority="critical",
             )
         )
@@ -287,27 +284,27 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
         hass.async_create_task(
             _send_notification(
                 hass,
-                title=f"Warning: {pig_name} glucose low",
-                message=f"{pig_name} glucose is {glucose} mg/dL - below threshold",
+                title=f"Warning: {subject_name} glucose low",
+                message=f"{subject_name} glucose is {glucose} mg/dL - below threshold",
                 priority="high",
             )
         )
         state["low_notified"] = True
     elif status in (STATUS_HIGH, STATUS_VERY_HIGH):
         # Delay high glucose notification by 5 minutes
-        if _high_glucose_since.get(pig_name) is None:
-            _high_glucose_since[pig_name] = now
+        if _high_glucose_since.get(subject_name) is None:
+            _high_glucose_since[subject_name] = now
         elif (
             not state["high_notified"]
-            and (now - _high_glucose_since[pig_name]) >= HIGH_GLUCOSE_DELAY
+            and (now - _high_glucose_since[subject_name]) >= HIGH_GLUCOSE_DELAY
         ):
             severity = "very high" if status == STATUS_VERY_HIGH else "high"
             priority = "critical" if status == STATUS_VERY_HIGH else "high"
             hass.async_create_task(
                 _send_notification(
                     hass,
-                    title=f"Warning: {pig_name} glucose {severity}",
-                    message=f"{pig_name} glucose is {glucose} mg/dL - {severity}!",
+                    title=f"Warning: {subject_name} glucose {severity}",
+                    message=f"{subject_name} glucose is {glucose} mg/dL - {severity}!",
                     priority=priority,
                 )
             )
@@ -318,8 +315,8 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
         hass.async_create_task(
             _send_notification(
                 hass,
-                title=f"Data gap: {pig_name}",
-                message=f"No glucose reading from {pig_name} for {age_text}",
+                title=f"Data gap: {subject_name}",
+                message=f"No glucose reading from {subject_name} for {age_text}",
                 priority="default",
             )
         )
@@ -331,8 +328,8 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
             hass.async_create_task(
                 _send_notification(
                     hass,
-                    title=f"{pig_name} glucose back to normal",
-                    message=f"{pig_name} glucose is {glucose} mg/dL - back in range",
+                    title=f"{subject_name} glucose back to normal",
+                    message=f"{subject_name} glucose is {glucose} mg/dL - back in range",
                     priority="low",
                 )
             )
@@ -340,7 +337,7 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
         state["critical_low_notified"] = False
         state["high_notified"] = False
         state["no_data_notified"] = False
-        _high_glucose_since[pig_name] = None
+        _high_glucose_since[subject_name] = None
 
 
 async def _send_notification(
@@ -443,21 +440,21 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
     ]
 
     for entry in entries:
-        pig_name = entry.data.get(CONF_PIG_NAME, "Unknown")
+        subject_name = entry.data.get(CONF_SUBJECT_NAME, "Unknown")
 
         # Get yesterday's readings from persistent store
-        readings = store.get_readings_for_date(pig_name, yesterday)
+        readings = store.get_readings_for_date(subject_name, yesterday)
 
         # Get yesterday's events from persistent store
         insulin_events = store.get_events_for_date(
-            pig_name, yesterday, EVENT_TYPE_INSULIN
+            subject_name, yesterday, EVENT_TYPE_INSULIN
         )
         feeding_events = store.get_events_for_date(
-            pig_name, yesterday, EVENT_TYPE_FEEDING
+            subject_name, yesterday, EVENT_TYPE_FEEDING
         )
 
         if not readings:
-            lines.append(f"{pig_name}: No readings recorded for {yesterday}")
+            lines.append(f"{subject_name}: No readings recorded for {yesterday}")
             lines.append("")
             continue
 
@@ -522,7 +519,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             current_status = coordinator.data.glucose_status
 
         lines.extend([
-            f"--- {pig_name} ---",
+            f"--- {subject_name} ---",
             f"  Current glucose: {current_glucose} mg/dL ({current_trend})",
             f"  Current status: {current_status}",
             f"  Thresholds: <{crit_low} critical | <{low} low | "
@@ -540,7 +537,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         ])
 
         # Add notable events
-        all_yesterday_events = store.get_events_for_date(pig_name, yesterday)
+        all_yesterday_events = store.get_events_for_date(subject_name, yesterday)
         emergencies = [
             e for e in all_yesterday_events
             if e.get("category") in ("emergency_single", "emergency_double")

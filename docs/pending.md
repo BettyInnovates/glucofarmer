@@ -111,7 +111,7 @@ User drueckt Preset-Button
 ### 3. Was der User fuer Seite 2 will (aus Diskussion)
 
 Aus pending.md und frueheren Besprechungen:
-1. Graph oben (Glucose-Verlauf des Schweins, Kurzuebersicht)
+1. Graph oben (Glucose-Verlauf des Profils, Kurzuebersicht)
 2. Workflow: Button zuerst sichtbar → nach Klick Formular einblenden (Progressive Disclosure)
 3. Presets + manuelle Eingabe beide moeglich
 4. Zeitstempel: Default=jetzt, Option "vor X Minuten"
@@ -225,7 +225,7 @@ Wichtigste Erkenntnisse fuer GlucoFarmer:
 
 5. EINHEIT: BE vs. Gramm
    Dexcom/Nightscout verwenden Gramm KH. GlucoFarmer verwendet BE (Broteinheiten).
-   Fuer Schweine-Tierernährung ist BE moeglicherweise die korrekte Einheit.
+   Fuer diesen Anwendungsfall ist BE moeglicherweise die korrekte Einheit.
    Fuer spaetere Diskussion vormerken: Umrechnungsfaktor? Oder BE beibehalten?
 
 **Offene Fragen fuer den User:**
@@ -258,7 +258,7 @@ Wichtigste Erkenntnisse fuer GlucoFarmer:
 - Datenmodell: `timestamp` (wann passiert) + `created_at` (wann geloggt) getrennt
 
 **Config + Mapping → GlucoFarmer Config Entry**
-- Welcher Sensor gehoert zu welchem Pig -- bleibt wie bisher
+- Welcher Sensor gehoert zu welchem Profil -- bleibt wie bisher
 
 ### Voraussetzung fuer Langzeit-Studie
 HA `configuration.yaml` muss einmalig angepasst werden:
@@ -298,6 +298,30 @@ oder als separater Meilenstein.
 
 ---
 
+---
+
+## Offene Bugs / Aufgaben (Stand 19.02.2026, nach v1.3.17)
+
+### BUG: Stacked Bar Chart "! configuration error" (Seite 3, seit v1.3.14)
+- User sieht "! configuration error" wo das Balkendiagramm sein sollte
+- Ursache noch nicht untersucht
+- Verdacht: apexcharts-card unterstuetzt `graph_span`/`group_by` nicht zusammen mit
+  `chart_type: bar` und `stacked: true` -- muss geprueft werden
+- Zu fixen (naechster Schritt)
+
+### IDEE: HA Energy Card als Vorlage
+- User hat vorgeschlagen die HA Energy Card anzuschauen
+- Moeglicherweise kann sie einige Dashboard-Probleme loesen (Seite 2 Layout?)
+- Noch nicht untersucht -- fuer Seite-2-Diskussion vormerken
+
+### Sanitizing-Status (19.02.2026)
+- README.md: komplett neu geschrieben, keine sensiblen Bezeichner mehr
+- docs/architecture.md, changelog.md, CLAUDE.md: bereinigt
+- CODE: v1.3.18 -- alle sensiblen Bezeichner entfernt/neutralisiert
+  (services.yaml, strings.json, translations, dashboard.py, __init__.py, data-analysis)
+
+---
+
 ## Naechste Schritte (Prioritaet)
 
 ### SOFORT: v1.3.13 committen
@@ -305,7 +329,7 @@ Commit-Message steht in CLAUDE.md bereit.
 
 ### 1. Seite 2 besprechen (MUSS besprochen werden vor Implementierung)
 Geplante Aenderungen laut frueherer Diskussion:
-- Layout: Graph oben (Uebersicht Schwein) + Buttons darunter
+- Layout: Graph oben (Uebersicht Profil) + Buttons darunter
 - Workflow: Button sichtbar -> nach Klick Formular einblenden
 - Presets + manuelle Eingabe beide moeglich
 - Zeitstempel: default=jetzt, Option "vor X min"
@@ -327,19 +351,19 @@ Geplante Aenderungen laut frueherer Diskussion:
 - Nur dashboard.py aendern, kein Coordinator-Change noetig
 - Implementierung: Jinja-Template in Markdown-Card oder entities-Template
 
-### 4. Schwellwerte global fuer alle Schweine
-- Aktuell: jedes Schwein hat eigene Number-Entities fuer Schwellwerte
-- User will vorerst: alle Schweine teilen dieselben Schwellwerte
+### 4. Schwellwerte global fuer alle Profile
+- Aktuell: jedes Profil hat eigene Number-Entities fuer Schwellwerte
+- User will vorerst: alle Profile teilen dieselben Schwellwerte
 - Architektur-Optionen:
-  a) Erste Schwein-Config gibt Werte vor, andere lesen davon
+  a) Erste Profil-Config gibt Werte vor, andere lesen davon
   b) Globale Config-Entry fuer Schwellwerte
-  c) Beim Aendern bei Schwein A automatisch bei B/C mitaendern
-- Vormerken: pro-Schwein-Schwellwerte koennte Projektleiter spaeter wollen
+  c) Beim Aendern bei Profil A automatisch bei B/C mitaendern
+- Vormerken: pro-Profil-Schwellwerte koennte Projektleiter spaeter wollen
   (Architektur ist bereits vorhanden -- je eigene Number-Entities)
 
 ### 5. Sonstige kleinere Punkte
-- Seite 1: Mehrere Schweine / Ampel-Konzept (Vordenken + Besprechen)
-- Seite 1: Pig-Selektor ein/ausblenden (spaeter)
+- Seite 1: Mehrere Profile / Ampel-Konzept (Vordenken + Besprechen)
+- Seite 1: Profil-Selektor ein/ausblenden (spaeter)
 - Dexcom Share Delay ~12min -> no_data Alarm default_timeout (mittel, vor Alarm-Feintuning)
 - No-Data Notification: laufend aktualisieren (gleiche notification_id updaten)
 

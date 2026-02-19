@@ -12,7 +12,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_DATA_TIMEOUT,
     DEFAULT_HIGH_THRESHOLD,
@@ -152,10 +152,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up GlucoFarmer number entities."""
     coordinator = entry.runtime_data
-    pig_name = entry.data[CONF_PIG_NAME]
+    subject_name = entry.data[CONF_SUBJECT_NAME]
 
     async_add_entities(
-        GlucoFarmerNumberEntity(coordinator, description, pig_name, entry.entry_id)
+        GlucoFarmerNumberEntity(coordinator, description, subject_name, entry.entry_id)
         for description in NUMBER_DESCRIPTIONS
     )
 
@@ -171,7 +171,7 @@ class GlucoFarmerNumberEntity(NumberEntity):
         self,
         coordinator: GlucoFarmerCoordinator,
         description: GlucoFarmerNumberEntityDescription,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
     ) -> None:
         """Initialize the number entity."""
@@ -181,9 +181,9 @@ class GlucoFarmerNumberEntity(NumberEntity):
         self._attr_native_value = description.default_value
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     async def async_set_native_value(self, value: float) -> None:

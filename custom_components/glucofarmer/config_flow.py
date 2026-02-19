@@ -28,7 +28,7 @@ from .const import (
     CONF_FEEDING_CATEGORIES,
     CONF_GLUCOSE_SENSOR,
     CONF_INSULIN_PRODUCTS,
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     CONF_PRESETS,
     CONF_TREND_SENSOR,
     DEFAULT_FEEDING_CATEGORIES,
@@ -86,20 +86,20 @@ class GlucoFarmerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step: set up a pig profile."""
+        """Handle the initial step: set up a subject profile."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            pig_name = user_input[CONF_PIG_NAME]
+            subject_name = user_input[CONF_SUBJECT_NAME]
 
-            # Check for duplicate pig name
-            await self.async_set_unique_id(pig_name.lower().replace(" ", "_"))
+            # Check for duplicate subject name
+            await self.async_set_unique_id(subject_name.lower().replace(" ", "_"))
             self._abort_if_unique_id_configured()
 
             return self.async_create_entry(
-                title=pig_name,
+                title=subject_name,
                 data={
-                    CONF_PIG_NAME: pig_name,
+                    CONF_SUBJECT_NAME: subject_name,
                     CONF_GLUCOSE_SENSOR: user_input[CONF_GLUCOSE_SENSOR],
                     CONF_TREND_SENSOR: user_input[CONF_TREND_SENSOR],
                 },
@@ -118,7 +118,7 @@ class GlucoFarmerConfigFlow(ConfigFlow, domain=DOMAIN):
 
         data_schema = vol.Schema(
             {
-                vol.Required(CONF_PIG_NAME): str,
+                vol.Required(CONF_SUBJECT_NAME): str,
                 vol.Required(CONF_GLUCOSE_SENSOR): vol.In(sensors),
                 vol.Required(CONF_TREND_SENSOR): vol.In(sensors),
             }

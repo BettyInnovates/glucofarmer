@@ -19,7 +19,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     DOMAIN,
     STATUS_CRITICAL_LOW,
     STATUS_HIGH,
@@ -168,15 +168,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up GlucoFarmer sensor entities."""
     coordinator = entry.runtime_data
-    pig_name = entry.data[CONF_PIG_NAME]
+    subject_name = entry.data[CONF_SUBJECT_NAME]
 
     entities: list[SensorEntity] = [
-        GlucoFarmerSensorEntity(coordinator, description, pig_name, entry.entry_id)
+        GlucoFarmerSensorEntity(coordinator, description, subject_name, entry.entry_id)
         for description in SENSOR_DESCRIPTIONS
     ]
     # Add special events sensor
     entities.append(
-        GlucoFarmerEventsSensor(coordinator, pig_name, entry.entry_id)
+        GlucoFarmerEventsSensor(coordinator, subject_name, entry.entry_id)
     )
     async_add_entities(entities)
 
@@ -193,7 +193,7 @@ class GlucoFarmerSensorEntity(
         self,
         coordinator: GlucoFarmerCoordinator,
         description: GlucoFarmerSensorEntityDescription,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
     ) -> None:
         """Initialize the sensor."""
@@ -202,9 +202,9 @@ class GlucoFarmerSensorEntity(
         self._attr_unique_id = f"{entry_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     @property
@@ -233,7 +233,7 @@ class GlucoFarmerEventsSensor(
     def __init__(
         self,
         coordinator: GlucoFarmerCoordinator,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
     ) -> None:
         """Initialize the events sensor."""
@@ -241,9 +241,9 @@ class GlucoFarmerEventsSensor(
         self._attr_unique_id = f"{entry_id}_today_events"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     @property

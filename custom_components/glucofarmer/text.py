@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_PIG_NAME, DOMAIN
+from .const import CONF_SUBJECT_NAME, DOMAIN
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
 
 
@@ -41,10 +41,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up GlucoFarmer text entities."""
     coordinator = entry.runtime_data
-    pig_name = entry.data[CONF_PIG_NAME]
+    subject_name = entry.data[CONF_SUBJECT_NAME]
 
     async_add_entities(
-        GlucoFarmerTextEntity(coordinator, description, pig_name, entry.entry_id)
+        GlucoFarmerTextEntity(coordinator, description, subject_name, entry.entry_id)
         for description in TEXT_DESCRIPTIONS
     )
 
@@ -61,7 +61,7 @@ class GlucoFarmerTextEntity(TextEntity):
         self,
         coordinator: GlucoFarmerCoordinator,
         description: GlucoFarmerTextEntityDescription,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
     ) -> None:
         """Initialize the text entity."""
@@ -70,9 +70,9 @@ class GlucoFarmerTextEntity(TextEntity):
         self._attr_unique_id = f"{entry_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     async def async_set_value(self, value: str) -> None:

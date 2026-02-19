@@ -1,12 +1,12 @@
 log_insulin:
   name: Log insulin
-  description: Log an insulin administration event for a pig.
+  description: Log an insulin administration event for a subject.
   fields:
-    pig_name:
-      name: Pig name
-      description: Name of the pig (e.g. "Piggy-01").
+    subject_name:
+      name: Subject name
+      description: Name of the subject profile.
       required: true
-      example: "Piggy-01"
+      example: "Subject-01"
       selector:
         text:
     product:
@@ -43,13 +43,13 @@ log_insulin:
 
 log_feeding:
   name: Log feeding
-  description: Log a feeding event for a pig.
+  description: Log a feeding event for a subject.
   fields:
-    pig_name:
-      name: Pig name
-      description: Name of the pig.
+    subject_name:
+      name: Subject name
+      description: Name of the subject profile.
       required: true
-      example: "Piggy-01"
+      example: "Subject-01"
       selector:
         text:
     amount:
@@ -80,7 +80,7 @@ log_feeding:
             - other
     description:
       name: Description
-      description: Optional description (e.g. "distraction during injection").
+      description: Optional description.
       required: false
       selector:
         text:

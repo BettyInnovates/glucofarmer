@@ -11,7 +11,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     CONF_PRESETS,
     DOMAIN,
     PRESET_TYPE_FEEDING,
@@ -30,7 +30,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up GlucoFarmer button entities."""
     coordinator = entry.runtime_data
-    pig_name = entry.data[CONF_PIG_NAME]
+    subject_name = entry.data[CONF_SUBJECT_NAME]
     store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
 
     entities: list[ButtonEntity] = []
@@ -40,15 +40,15 @@ async def async_setup_entry(
     for preset in presets:
         entities.append(
             GlucoFarmerPresetButton(
-                coordinator, store, preset, pig_name, entry.entry_id
+                coordinator, store, preset, subject_name, entry.entry_id
             )
         )
 
     # Action buttons
     entities.extend([
-        GlucoFarmerLogFeedingButton(coordinator, pig_name, entry.entry_id, store),
-        GlucoFarmerLogInsulinButton(coordinator, pig_name, entry.entry_id, store),
-        GlucoFarmerArchiveEventButton(coordinator, pig_name, entry.entry_id, store),
+        GlucoFarmerLogFeedingButton(coordinator, subject_name, entry.entry_id, store),
+        GlucoFarmerLogInsulinButton(coordinator, subject_name, entry.entry_id, store),
+        GlucoFarmerArchiveEventButton(coordinator, subject_name, entry.entry_id, store),
     ])
 
     async_add_entities(entities)
@@ -65,14 +65,14 @@ class GlucoFarmerPresetButton(ButtonEntity):
         coordinator: GlucoFarmerCoordinator,
         store: GlucoFarmerStore,
         preset: dict[str, Any],
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
     ) -> None:
         """Initialize the preset button."""
         self._coordinator = coordinator
         self._store = store
         self._preset = preset
-        self._pig_name = pig_name
+        self._subject_name = subject_name
         preset_slug = preset["name"].lower().replace(" ", "_")
         self._attr_unique_id = f"{entry_id}_preset_{preset_slug}"
         self._attr_name = preset["name"]
@@ -81,9 +81,9 @@ class GlucoFarmerPresetButton(ButtonEntity):
         )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     async def async_press(self) -> None:
@@ -94,7 +94,7 @@ class GlucoFarmerPresetButton(ButtonEntity):
         if preset_type == PRESET_TYPE_INSULIN:
             product = self._preset.get("product", "")
             await self._store.async_log_insulin(
-                pig_name=self._pig_name,
+                subject_name=self._subject_name,
                 product=product,
                 amount=amount,
             )
@@ -103,12 +103,12 @@ class GlucoFarmerPresetButton(ButtonEntity):
                 self._preset["name"],
                 product,
                 amount,
-                self._pig_name,
+                self._subject_name,
             )
         elif preset_type == PRESET_TYPE_FEEDING:
             category = self._preset.get("category", "other")
             await self._store.async_log_feeding(
-                pig_name=self._pig_name,
+                subject_name=self._subject_name,
                 amount=amount,
                 category=category,
             )
@@ -117,7 +117,7 @@ class GlucoFarmerPresetButton(ButtonEntity):
                 self._preset["name"],
                 amount,
                 category,
-                self._pig_name,
+                self._subject_name,
             )
 
         await self._coordinator.async_refresh()
@@ -134,20 +134,20 @@ class GlucoFarmerLogFeedingButton(ButtonEntity):
     def __init__(
         self,
         coordinator: GlucoFarmerCoordinator,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
         store: GlucoFarmerStore,
     ) -> None:
         """Initialize the log feeding button."""
         self._coordinator = coordinator
-        self._pig_name = pig_name
+        self._subject_name = subject_name
         self._store = store
         self._attr_unique_id = f"{entry_id}_log_feeding"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     async def async_press(self) -> None:
@@ -157,13 +157,13 @@ class GlucoFarmerLogFeedingButton(ButtonEntity):
         timestamp = self._coordinator.event_timestamp or None
 
         await self._store.async_log_feeding(
-            pig_name=self._pig_name,
+            subject_name=self._subject_name,
             amount=amount,
             category=category,
             timestamp=timestamp,
         )
         _LOGGER.info(
-            "Logged feeding: %s BE (%s) for %s", amount, category, self._pig_name
+            "Logged feeding: %s BE (%s) for %s", amount, category, self._subject_name
         )
         await self._coordinator.async_refresh()
 
@@ -179,20 +179,20 @@ class GlucoFarmerLogInsulinButton(ButtonEntity):
     def __init__(
         self,
         coordinator: GlucoFarmerCoordinator,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
         store: GlucoFarmerStore,
     ) -> None:
         """Initialize the log insulin button."""
         self._coordinator = coordinator
-        self._pig_name = pig_name
+        self._subject_name = subject_name
         self._store = store
         self._attr_unique_id = f"{entry_id}_log_insulin"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     async def async_press(self) -> None:
@@ -202,13 +202,13 @@ class GlucoFarmerLogInsulinButton(ButtonEntity):
         timestamp = self._coordinator.event_timestamp or None
 
         await self._store.async_log_insulin(
-            pig_name=self._pig_name,
+            subject_name=self._subject_name,
             product=product,
             amount=amount,
             timestamp=timestamp,
         )
         _LOGGER.info(
-            "Logged insulin: %s IU (%s) for %s", amount, product, self._pig_name
+            "Logged insulin: %s IU (%s) for %s", amount, product, self._subject_name
         )
         await self._coordinator.async_refresh()
 
@@ -224,20 +224,20 @@ class GlucoFarmerArchiveEventButton(ButtonEntity):
     def __init__(
         self,
         coordinator: GlucoFarmerCoordinator,
-        pig_name: str,
+        subject_name: str,
         entry_id: str,
         store: GlucoFarmerStore,
     ) -> None:
         """Initialize the archive event button."""
         self._coordinator = coordinator
-        self._pig_name = pig_name
+        self._subject_name = subject_name
         self._store = store
         self._attr_unique_id = f"{entry_id}_archive_event"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
 
     async def async_press(self) -> None:

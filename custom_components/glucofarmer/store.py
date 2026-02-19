@@ -41,6 +41,13 @@ class GlucoFarmerStore:
         else:
             self._events = []
             self._readings = []
+        # Migrate stored data from old "pig_name" key to "subject_name"
+        for r in self._readings:
+            if "pig_name" in r and "subject_name" not in r:
+                r["subject_name"] = r.pop("pig_name")
+        for e in self._events:
+            if "pig_name" in e and "subject_name" not in e:
+                e["subject_name"] = e.pop("pig_name")
         self._loaded = True
 
     async def _async_save(self) -> None:
@@ -54,7 +61,7 @@ class GlucoFarmerStore:
 
     async def async_log_reading(
         self,
-        pig_name: str,
+        subject_name: str,
         value: float,
         status: str,
         timestamp: str,
@@ -64,7 +71,7 @@ class GlucoFarmerStore:
             await self.async_load()
 
         self._readings.append({
-            "pig_name": pig_name,
+            "subject_name": subject_name,
             "value": value,
             "status": status,
             "timestamp": timestamp,
@@ -80,36 +87,36 @@ class GlucoFarmerStore:
 
     @callback
     def get_readings_for_date(
-        self, pig_name: str, date_str: str
+        self, subject_name: str, date_str: str
     ) -> list[dict[str, Any]]:
         """Get readings for a specific date (YYYY-MM-DD)."""
         prefix = f"{date_str}T"
         return [
             r for r in self._readings
-            if r["pig_name"] == pig_name and r["timestamp"].startswith(prefix)
+            if r["subject_name"] == subject_name and r["timestamp"].startswith(prefix)
         ]
 
     @callback
     def get_readings_for_range(
-        self, pig_name: str, start: str, end: str
+        self, subject_name: str, start: str, end: str
     ) -> list[dict[str, Any]]:
         """Get readings between start and end ISO timestamps."""
         return [
             r for r in self._readings
-            if r["pig_name"] == pig_name and start <= r["timestamp"] <= end
+            if r["subject_name"] == subject_name and start <= r["timestamp"] <= end
         ]
 
     @callback
-    def get_readings_today(self, pig_name: str) -> list[dict[str, Any]]:
-        """Get today's readings for a pig."""
+    def get_readings_today(self, subject_name: str) -> list[dict[str, Any]]:
+        """Get today's readings for a subject."""
         today = datetime.now().strftime("%Y-%m-%d")
-        return self.get_readings_for_date(pig_name, today)
+        return self.get_readings_for_date(subject_name, today)
 
     # ---- Events (insulin, feeding) ----
 
     async def async_log_insulin(
         self,
-        pig_name: str,
+        subject_name: str,
         product: str,
         amount: float,
         timestamp: str | None = None,
@@ -124,7 +131,7 @@ class GlucoFarmerStore:
         event = {
             "id": event_id,
             "type": EVENT_TYPE_INSULIN,
-            "pig_name": pig_name,
+            "subject_name": subject_name,
             "product": product,
             "amount": amount,
             "timestamp": timestamp or now,
@@ -133,12 +140,12 @@ class GlucoFarmerStore:
         }
         self._events.append(event)
         await self._async_save()
-        _LOGGER.debug("Logged insulin event %s for %s", event_id, pig_name)
+        _LOGGER.debug("Logged insulin event %s for %s", event_id, subject_name)
         return event_id
 
     async def async_log_feeding(
         self,
-        pig_name: str,
+        subject_name: str,
         amount: float,
         category: str,
         description: str | None = None,
@@ -153,7 +160,7 @@ class GlucoFarmerStore:
         event = {
             "id": event_id,
             "type": EVENT_TYPE_FEEDING,
-            "pig_name": pig_name,
+            "subject_name": subject_name,
             "amount": amount,
             "category": category,
             "description": description,
@@ -162,7 +169,7 @@ class GlucoFarmerStore:
         }
         self._events.append(event)
         await self._async_save()
-        _LOGGER.debug("Logged feeding event %s for %s", event_id, pig_name)
+        _LOGGER.debug("Logged feeding event %s for %s", event_id, subject_name)
         return event_id
 
     async def async_delete_event(self, event_id: str) -> bool:
@@ -179,16 +186,16 @@ class GlucoFarmerStore:
         return False
 
     @callback
-    def get_events_for_pig(
+    def get_events_for_subject(
         self,
-        pig_name: str,
+        subject_name: str,
         event_type: str | None = None,
         since: datetime | None = None,
     ) -> list[dict[str, Any]]:
-        """Get events for a specific pig, optionally filtered."""
+        """Get events for a specific subject, optionally filtered."""
         result = [
             e for e in self._events
-            if e["pig_name"] == pig_name and not e.get("archived")
+            if e["subject_name"] == subject_name and not e.get("archived")
         ]
         if event_type is not None:
             result = [e for e in result if e["type"] == event_type]
@@ -199,13 +206,13 @@ class GlucoFarmerStore:
 
     @callback
     def get_events_for_date(
-        self, pig_name: str, date_str: str, event_type: str | None = None
+        self, subject_name: str, date_str: str, event_type: str | None = None
     ) -> list[dict[str, Any]]:
         """Get events for a specific date (YYYY-MM-DD)."""
         prefix = f"{date_str}T"
         result = [
             e for e in self._events
-            if e["pig_name"] == pig_name and e["timestamp"].startswith(prefix)
+            if e["subject_name"] == subject_name and e["timestamp"].startswith(prefix)
         ]
         if event_type is not None:
             result = [e for e in result if e["type"] == event_type]
@@ -213,11 +220,11 @@ class GlucoFarmerStore:
 
     @callback
     def get_today_events(
-        self, pig_name: str, event_type: str | None = None
+        self, subject_name: str, event_type: str | None = None
     ) -> list[dict[str, Any]]:
-        """Get today's events for a pig."""
+        """Get today's events for a subject."""
         today = datetime.now().strftime("%Y-%m-%d")
-        return self.get_events_for_date(pig_name, today, event_type)
+        return self.get_events_for_date(subject_name, today, event_type)
 
     @callback
     def get_all_events(self) -> list[dict[str, Any]]:

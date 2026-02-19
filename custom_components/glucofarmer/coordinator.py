@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_GLUCOSE_SENSOR,
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     CONF_TREND_SENSOR,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_DATA_TIMEOUT,
@@ -80,10 +80,10 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             hass,
             _LOGGER,
             config_entry=entry,
-            name=f"{DOMAIN}_{entry.data[CONF_PIG_NAME]}",
+            name=f"{DOMAIN}_{entry.data[CONF_SUBJECT_NAME]}",
             update_interval=_SCAN_INTERVAL,
         )
-        self.pig_name: str = entry.data[CONF_PIG_NAME]
+        self.subject_name: str = entry.data[CONF_SUBJECT_NAME]
         self.glucose_sensor_id: str = entry.data[CONF_GLUCOSE_SENSOR]
         self.trend_sensor_id: str = entry.data[CONF_TREND_SENSOR]
         self.store = store
@@ -112,12 +112,12 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
 
     def _restore_last_reading_time(self) -> None:
         """Restore last valid reading timestamp from persistent store after restart."""
-        readings = self.store.get_readings_today(self.pig_name)
+        readings = self.store.get_readings_today(self.subject_name)
         if not readings:
             now = datetime.now()
             start = (now - timedelta(hours=24)).isoformat()
             readings = self.store.get_readings_for_range(
-                self.pig_name, start, now.isoformat()
+                self.subject_name, start, now.isoformat()
             )
         if readings:
             last_ts = max(r["timestamp"] for r in readings)
@@ -173,7 +173,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         daily_bes = self._compute_daily_bes()
 
         # Today's events for display
-        today_events = self.store.get_today_events(self.pig_name)
+        today_events = self.store.get_today_events(self.subject_name)
 
         return GlucoFarmerData(
             glucose_value=glucose_value,
@@ -262,7 +262,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             else datetime.now().isoformat()
         )
         await self.store.async_log_reading(
-            pig_name=self.pig_name,
+            subject_name=self.subject_name,
             value=glucose,
             status=status,
             timestamp=timestamp,
@@ -287,7 +287,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         now = datetime.now()
         start = (now - timedelta(hours=hours)).isoformat()
         end = now.isoformat()
-        readings = self.store.get_readings_for_range(self.pig_name, start, end)
+        readings = self.store.get_readings_for_range(self.subject_name, start, end)
         if not readings:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
@@ -327,7 +327,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         Returns (pct, actual, total_expected) where total_expected = actual + missed.
         Missed readings are derived from gaps > 10 min between stored readings.
         This approach is database-driven: HA restarts do not inflate the missed count,
-        and two pigs on the same sensor always produce identical results.
+        and two subjects on the same sensor always produce identical results.
         """
         actual = len(readings)
         if actual == 0:
@@ -357,7 +357,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
 
     def _compute_data_completeness_today(self) -> tuple[float, int, int]:
         """Gap-based completeness since local midnight. Returns (pct, actual, total_expected)."""
-        readings = self.store.get_readings_today(self.pig_name)
+        readings = self.store.get_readings_today(self.subject_name)
         return self._gap_based_completeness(readings)
 
     def _compute_data_completeness_range(self, hours: int) -> tuple[float, int, int]:
@@ -365,15 +365,15 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         now = datetime.now()
         start = (now - timedelta(hours=hours)).isoformat()
         end = now.isoformat()
-        readings = self.store.get_readings_for_range(self.pig_name, start, end)
+        readings = self.store.get_readings_for_range(self.subject_name, start, end)
         return self._gap_based_completeness(readings)
 
     def _compute_daily_insulin(self) -> float:
         """Compute total insulin IU administered today."""
-        events = self.store.get_today_events(self.pig_name, EVENT_TYPE_INSULIN)
+        events = self.store.get_today_events(self.subject_name, EVENT_TYPE_INSULIN)
         return sum(e.get("amount", 0) for e in events)
 
     def _compute_daily_bes(self) -> float:
         """Compute total bread units (BE) fed today."""
-        events = self.store.get_today_events(self.pig_name, EVENT_TYPE_FEEDING)
+        events = self.store.get_today_events(self.subject_name, EVENT_TYPE_FEEDING)
         return sum(e.get("amount", 0) for e in events)

@@ -1,7 +1,7 @@
 """Auto-generated dashboard for GlucoFarmer.
 
 Creates and updates a Lovelace dashboard automatically based on
-configured pig entries. Uses apexcharts-card for glucose charts
+configured subject entries. Uses apexcharts-card for glucose charts
 with colored threshold zones.
 """
 
@@ -15,12 +15,12 @@ from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_PIG_NAME, CONF_PRESETS, DOMAIN
+from .const import CONF_SUBJECT_NAME, CONF_PRESETS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# Colors for pigs in multi-pig charts
-_PIG_COLORS = [
+# Colors for subjects in multi-subject charts
+_SUBJECT_COLORS = [
     "#2196F3",
     "#FF9800",
     "#9C27B0",
@@ -32,7 +32,7 @@ _PIG_COLORS = [
 ]
 
 
-def _get_pig_entities(
+def _get_subject_entities(
     hass: HomeAssistant, entry_id: str
 ) -> dict[str, str]:
     """Map entity keys to actual entity_ids for a config entry."""
@@ -49,21 +49,21 @@ def _get_pig_entities(
 
 
 def _build_overview_view(
-    pigs: list[dict[str, Any]],
+    subjects: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the overview view with gauges and apexcharts."""
     cards: list[dict[str, Any]] = []
 
-    # ApexCharts: all pigs in one chart with colored 5-zone threshold areas
+    # ApexCharts: all subjects in one chart with colored 5-zone threshold areas
     series = []
-    for i, pig in enumerate(pigs):
-        entity_id = pig["entities"].get("glucose_value")
+    for i, subject in enumerate(subjects):
+        entity_id = subject["entities"].get("glucose_value")
         if entity_id:
             series.append({
                 "entity": entity_id,
-                "name": pig["name"],
+                "name": subject["name"],
                 "stroke_width": 2,
-                "color": _PIG_COLORS[i % len(_PIG_COLORS)],
+                "color": _SUBJECT_COLORS[i % len(_SUBJECT_COLORS)],
             })
 
     if series:
@@ -71,7 +71,7 @@ def _build_overview_view(
             "type": "custom:apexcharts-card",
             "header": {
                 "show": True,
-                "title": "Glucose-Verlauf (alle Schweine)",
+                "title": "Glucose-Verlauf (alle Profile)",
                 "show_states": True,
             },
             "graph_span": "6h",
@@ -142,11 +142,11 @@ def _build_overview_view(
             "series": series,
         })
 
-    # Per pig: conditional gauge + info
-    for pig in pigs:
-        ents = pig["entities"]
-        pig_cards: list[dict[str, Any]] = [
-            {"type": "markdown", "content": f"## {pig['name']}"},
+    # Per subject: conditional gauge + info
+    for subject in subjects:
+        ents = subject["entities"]
+        subject_cards: list[dict[str, Any]] = [
+            {"type": "markdown", "content": f"## {subject['name']}"},
         ]
 
         row_cards: list[dict[str, Any]] = []
@@ -218,9 +218,9 @@ def _build_overview_view(
             })
 
         if row_cards:
-            pig_cards.append({"type": "horizontal-stack", "cards": row_cards})
+            subject_cards.append({"type": "horizontal-stack", "cards": row_cards})
 
-        cards.append({"type": "vertical-stack", "cards": pig_cards})
+        cards.append({"type": "vertical-stack", "cards": subject_cards})
 
     return {
         "title": "Uebersicht",
@@ -231,16 +231,16 @@ def _build_overview_view(
 
 
 def _build_input_view(
-    pigs: list[dict[str, Any]],
+    subjects: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the input view with forms, presets, and event management."""
     cards: list[dict[str, Any]] = []
 
-    for pig in pigs:
-        ents = pig["entities"]
-        pig_name = pig["name"]
-        pig_cards: list[dict[str, Any]] = [
-            {"type": "markdown", "content": f"## {pig_name}"},
+    for subject in subjects:
+        ents = subject["entities"]
+        subject_name = subject["name"]
+        subject_cards: list[dict[str, Any]] = [
+            {"type": "markdown", "content": f"## {subject_name}"},
         ]
 
         # Current status as markdown template (bold for critical values)
@@ -251,7 +251,7 @@ def _build_input_view(
         bes_entity = ents.get("daily_bes_total", "")
 
         if glucose_entity:
-            pig_cards.append({
+            subject_cards.append({
                 "type": "markdown",
                 "content": (
                     f"{{% set val = states('{glucose_entity}') %}}"
@@ -273,11 +273,11 @@ def _build_input_view(
         # Preset buttons (quick input)
         preset_keys = sorted(k for k in ents if k.startswith("preset_"))
         if preset_keys:
-            pig_cards.append({
+            subject_cards.append({
                 "type": "markdown",
                 "content": "### Schnelleingabe (Presets)",
             })
-            pig_cards.append({
+            subject_cards.append({
                 "type": "markdown",
                 "content": (
                     "Presets werden unter **Einstellungen > Geraete & Dienste > "
@@ -296,7 +296,7 @@ def _build_input_view(
                 })
 
             for i in range(0, len(button_cards), 3):
-                pig_cards.append({
+                subject_cards.append({
                     "type": "horizontal-stack",
                     "cards": button_cards[i:i + 3],
                 })
@@ -312,10 +312,10 @@ def _build_input_view(
                 feeding_entities.append({"entity": ents[key], "name": label})
 
         if feeding_entities:
-            pig_cards.append({"type": "markdown", "content": "### Fuetterung loggen"})
-            pig_cards.append({"type": "entities", "entities": feeding_entities})
+            subject_cards.append({"type": "markdown", "content": "### Fuetterung loggen"})
+            subject_cards.append({"type": "entities", "entities": feeding_entities})
             if "log_feeding" in ents:
-                pig_cards.append({
+                subject_cards.append({
                     "type": "button",
                     "entity": ents["log_feeding"],
                     "name": "Fuetterung loggen",
@@ -335,10 +335,10 @@ def _build_input_view(
                 insulin_entities.append({"entity": ents[key], "name": label})
 
         if insulin_entities:
-            pig_cards.append({"type": "markdown", "content": "### Insulin loggen"})
-            pig_cards.append({"type": "entities", "entities": insulin_entities})
+            subject_cards.append({"type": "markdown", "content": "### Insulin loggen"})
+            subject_cards.append({"type": "entities", "entities": insulin_entities})
             if "log_insulin" in ents:
-                pig_cards.append({
+                subject_cards.append({
                     "type": "button",
                     "entity": ents["log_insulin"],
                     "name": "Insulin loggen",
@@ -350,7 +350,7 @@ def _build_input_view(
         # Today's events list + archive
         events_entity = ents.get("today_events")
         if events_entity:
-            pig_cards.append({
+            subject_cards.append({
                 "type": "markdown",
                 "content": (
                     "### Letzte Eintraege\n\n"
@@ -378,9 +378,9 @@ def _build_input_view(
                 "name": "Event-ID zum Archivieren",
             })
         if archive_entities:
-            pig_cards.append({"type": "entities", "entities": archive_entities})
+            subject_cards.append({"type": "entities", "entities": archive_entities})
         if "archive_event" in ents:
-            pig_cards.append({
+            subject_cards.append({
                 "type": "button",
                 "entity": ents["archive_event"],
                 "name": "Event archivieren",
@@ -389,7 +389,7 @@ def _build_input_view(
                 "show_state": False,
             })
 
-        cards.append({"type": "vertical-stack", "cards": pig_cards})
+        cards.append({"type": "vertical-stack", "cards": subject_cards})
 
     return {
         "title": "Eingabe",
@@ -400,27 +400,27 @@ def _build_input_view(
 
 
 def _build_stats_view(
-    pigs: list[dict[str, Any]],
+    subjects: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the statistics view with 5-zone distribution and charts."""
     cards: list[dict[str, Any]] = []
 
-    # Chart timerange selector (use first pig's entity)
-    for pig in pigs:
-        if "chart_timerange" in pig["entities"]:
+    # Chart timerange selector (use first subject's entity)
+    for subject in subjects:
+        if "chart_timerange" in subject["entities"]:
             cards.append({
                 "type": "entities",
                 "entities": [{
-                    "entity": pig["entities"]["chart_timerange"],
+                    "entity": subject["entities"]["chart_timerange"],
                     "name": "Zeitraum",
                 }],
             })
             break
 
-    for pig in pigs:
-        ents = pig["entities"]
-        pig_cards: list[dict[str, Any]] = [
-            {"type": "markdown", "content": f"## {pig['name']}"},
+    for subject in subjects:
+        ents = subject["entities"]
+        subject_cards: list[dict[str, Any]] = [
+            {"type": "markdown", "content": f"## {subject['name']}"},
         ]
 
         # 5-zone distribution as stacked horizontal bar chart
@@ -441,7 +441,7 @@ def _build_stats_view(
                 })
 
         if zone_series:
-            pig_cards.append({
+            subject_cards.append({
                 "type": "custom:apexcharts-card",
                 "chart_type": "bar",
                 "stacked": True,
@@ -497,7 +497,7 @@ def _build_stats_view(
                 })
 
             if detail_entities:
-                pig_cards.append({
+                subject_cards.append({
                     "type": "entities",
                     "title": "Details",
                     "entities": detail_entities,
@@ -506,11 +506,11 @@ def _build_stats_view(
         # Glucose chart with zoom/pan and 5-zone annotations
         glucose_entity = ents.get("glucose_value")
         if glucose_entity:
-            pig_cards.append({
+            subject_cards.append({
                 "type": "custom:apexcharts-card",
                 "header": {
                     "show": True,
-                    "title": f"{pig['name']} - Glucose-Verlauf",
+                    "title": f"{subject['name']} - Glucose-Verlauf",
                 },
                 "graph_span": "24h",
                 "apex_config": {
@@ -551,14 +551,14 @@ def _build_stats_view(
                 },
                 "series": [{
                     "entity": glucose_entity,
-                    "name": pig["name"],
+                    "name": subject["name"],
                     "type": "line",
                     "color": "#2196F3",
                     "stroke_width": 2,
                 }],
             })
 
-        cards.append({"type": "vertical-stack", "cards": pig_cards})
+        cards.append({"type": "vertical-stack", "cards": subject_cards})
 
     return {
         "title": "Statistiken",
@@ -569,13 +569,13 @@ def _build_stats_view(
 
 
 def _build_settings_view(
-    pigs: list[dict[str, Any]],
+    subjects: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the settings view with thresholds and catalog management."""
     cards: list[dict[str, Any]] = []
 
-    for pig in pigs:
-        ents = pig["entities"]
+    for subject in subjects:
+        ents = subject["entities"]
 
         threshold_entities = []
         for key, label in [
@@ -591,7 +591,7 @@ def _build_settings_view(
         if threshold_entities:
             cards.append({
                 "type": "entities",
-                "title": f"{pig['name']} - Schwellwerte",
+                "title": f"{subject['name']} - Schwellwerte",
                 "show_header_toggle": False,
                 "entities": threshold_entities,
             })
@@ -622,35 +622,35 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
     """Generate and save the GlucoFarmer dashboard automatically.
 
     Creates the dashboard on first run, then updates it whenever
-    pig entries are added, removed, or their options change.
+    subject entries are added, removed, or their options change.
     """
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         return
 
-    # Collect pig data from entity registry
-    pigs: list[dict[str, Any]] = []
+    # Collect subject data from entity registry
+    subjects: list[dict[str, Any]] = []
     for entry in entries:
-        if not entry.data.get(CONF_PIG_NAME):
+        if not entry.data.get(CONF_SUBJECT_NAME):
             continue
-        entities = _get_pig_entities(hass, entry.entry_id)
-        pigs.append({
-            "name": entry.data[CONF_PIG_NAME],
+        entities = _get_subject_entities(hass, entry.entry_id)
+        subjects.append({
+            "name": entry.data[CONF_SUBJECT_NAME],
             "entry_id": entry.entry_id,
             "entities": entities,
             "presets": entry.options.get(CONF_PRESETS, []),
         })
 
-    if not pigs:
+    if not subjects:
         return
 
     # Build dashboard config
     config = {
         "views": [
-            _build_overview_view(pigs),
-            _build_input_view(pigs),
-            _build_stats_view(pigs),
-            _build_settings_view(pigs),
+            _build_overview_view(subjects),
+            _build_input_view(subjects),
+            _build_stats_view(subjects),
+            _build_settings_view(subjects),
         ],
     }
 
@@ -688,6 +688,6 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
 
     try:
         await dashboard_config.async_save(config)
-        _LOGGER.debug("GlucoFarmer dashboard updated with %d pigs", len(pigs))
+        _LOGGER.debug("GlucoFarmer dashboard updated with %d subjects", len(subjects))
     except Exception:
         _LOGGER.exception("Failed to save GlucoFarmer dashboard config")

@@ -12,7 +12,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .const import (
     CONF_FEEDING_CATEGORIES,
     CONF_INSULIN_PRODUCTS,
-    CONF_PIG_NAME,
+    CONF_SUBJECT_NAME,
     DEFAULT_FEEDING_CATEGORIES,
     DEFAULT_INSULIN_PRODUCTS,
     DOMAIN,
@@ -54,10 +54,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up GlucoFarmer select entities."""
     coordinator = entry.runtime_data
-    pig_name = entry.data[CONF_PIG_NAME]
+    subject_name = entry.data[CONF_SUBJECT_NAME]
 
     async_add_entities(
-        GlucoFarmerSelectEntity(coordinator, description, pig_name, entry)
+        GlucoFarmerSelectEntity(coordinator, description, subject_name, entry)
         for description in SELECT_DESCRIPTIONS
     )
 
@@ -73,7 +73,7 @@ class GlucoFarmerSelectEntity(SelectEntity):
         self,
         coordinator: GlucoFarmerCoordinator,
         description: GlucoFarmerSelectEntityDescription,
-        pig_name: str,
+        subject_name: str,
         entry: GlucoFarmerConfigEntry,
     ) -> None:
         """Initialize the select entity."""
@@ -83,9 +83,9 @@ class GlucoFarmerSelectEntity(SelectEntity):
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name=pig_name,
+            name=subject_name,
             manufacturer="GlucoFarmer",
-            model="Pig CGM Monitor",
+            model="Subject CGM Monitor",
         )
         self._attr_current_option = description.default_option
 
@@ -120,7 +120,7 @@ class GlucoFarmerSelectEntity(SelectEntity):
                 self._coordinator.hass.data.setdefault(DOMAIN, {})[
                     "chart_timerange"
                 ] = option
-                # Refresh all pig coordinators immediately -- chart_timerange is global
+                # Refresh all subject coordinators immediately -- chart_timerange is global
                 for entry in self._coordinator.hass.config_entries.async_entries(DOMAIN):
                     if hasattr(entry, "runtime_data") and entry.runtime_data:
                         await entry.runtime_data.async_request_refresh()
