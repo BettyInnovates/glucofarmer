@@ -1,5 +1,12 @@
 # GlucoFarmer Changelog
 
+## v1.3.16 (19.02.2026)
+Fix: FCM Android-Priority-Werte ungueltig (v1.3.16):
+- **`__init__.py`**: `_send_notification` verwendete `"low"`, `"default"` und `"critical"`
+  als Android-Priority -- FCM v1 (`AndroidMessagePriority`) kennt nur `"normal"` und `"high"`.
+  Mapping: `critical`/`high` → `"high"`, `default`/`low` → `"normal"`.
+  iOS Critical-Sound (`push.sound.critical: 1`) bleibt nur bei internem `critical`.
+
 ## v1.3.15 (19.02.2026)
 Fix: Tagesreport schlaegt fehl mit NameError (EVENT_TYPE_INSULIN nicht importiert):
 - **`__init__.py`**: `EVENT_TYPE_FEEDING` und `EVENT_TYPE_INSULIN` fehlten in den

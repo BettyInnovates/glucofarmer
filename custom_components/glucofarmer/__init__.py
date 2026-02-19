@@ -361,6 +361,13 @@ async def _send_notification(
         },
     )
 
+    # Map internal priority to FCM-compatible Android priority (only "high"/"normal" valid)
+    android_priority = "high" if priority in ("critical", "high") else "normal"
+    notify_data: dict = {"priority": android_priority}
+    if priority == "critical":
+        # iOS: critical alert breaks through DND
+        notify_data["push"] = {"sound": {"critical": 1}}
+
     # Try to send via notify service if available
     try:
         await hass.services.async_call(
@@ -369,9 +376,7 @@ async def _send_notification(
             {
                 "title": title,
                 "message": message,
-                "data": {"priority": priority, "push": {"sound": {"critical": 1}}}
-                if priority == "critical"
-                else {"priority": priority},
+                "data": notify_data,
             },
         )
     except Exception:
