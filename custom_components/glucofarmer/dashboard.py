@@ -423,11 +423,9 @@ def _build_stats_view(
             {"type": "markdown", "content": f"## {subject['name']}"},
         ]
 
-        # 5-zone distribution as stacked horizontal bar chart.
-        # In apexcharts-card horizontal bar charts:
-        #   xaxis = time axis (displayed vertically, labels hidden)
-        #   yaxis = value axis (displayed horizontally, max=100 for %)
-        # graph_span/group_by: 2h window is long enough to always have data.
+        # 5-zone distribution as donut chart.
+        # chart_type: donut uses current entity state directly (no graph_span/group_by
+        # needed). Simpler and more robust than stacked bar.
         zone_series = []
         for key, name, color in [
             ("time_critical_low_pct", "Kritisch niedrig", "#B71C1C"),
@@ -441,39 +439,20 @@ def _build_stats_view(
                     "entity": ents[key],
                     "name": name,
                     "color": color,
-                    "group_by": {"func": "last", "duration": "2h"},
                 })
 
         if zone_series:
             subject_cards.append({
                 "type": "custom:apexcharts-card",
-                "chart_type": "bar",
-                "stacked": True,
-                "graph_span": "2h",
+                "chart_type": "donut",
                 "header": {
                     "show": True,
                     "title": "Zeit im Zielbereich",
                 },
                 "apex_config": {
-                    "chart": {"height": 165, "stacked": True},
-                    "plotOptions": {
-                        "bar": {
-                            "horizontal": True,
-                            "dataLabels": {"position": "center"},
-                        },
-                    },
+                    "chart": {"height": 220},
                     "legend": {"show": True, "position": "bottom"},
-                    "xaxis": {
-                        "labels": {"show": False},
-                    },
-                    "yaxis": {
-                        "max": 100,
-                        "labels": {"show": False},
-                    },
-                    "dataLabels": {
-                        "enabled": True,
-                        "formatter": "function(val) { return val > 5 ? Math.round(val) + '%' : ''; }",
-                    },
+                    "dataLabels": {"enabled": True},
                 },
                 "series": zone_series,
             })
