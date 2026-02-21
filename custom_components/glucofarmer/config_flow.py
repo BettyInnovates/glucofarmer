@@ -16,12 +16,15 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
 from .const import (
@@ -30,6 +33,15 @@ from .const import (
     CONF_INSULIN_PRODUCTS,
     CONF_SUBJECT_NAME,
     CONF_PRESETS,
+    CONF_SMTP_ENABLED,
+    CONF_SMTP_ENCRYPTION,
+    CONF_SMTP_HOST,
+    CONF_SMTP_PASSWORD,
+    CONF_SMTP_PORT,
+    CONF_SMTP_RECIPIENTS,
+    CONF_SMTP_SENDER,
+    CONF_SMTP_SENDER_NAME,
+    CONF_SMTP_USERNAME,
     CONF_TREND_SENSOR,
     DEFAULT_FEEDING_CATEGORIES,
     DEFAULT_INSULIN_PRODUCTS,
@@ -144,6 +156,7 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
                 "manage_insulin_products",
                 "manage_feeding_categories",
                 "manage_presets",
+                "manage_email_settings",
             ],
         )
 
@@ -348,6 +361,87 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="add_preset",
             data_schema=vol.Schema(schema_dict),
+        )
+
+    # --- E-Mail / SMTP ---
+
+    async def async_step_manage_email_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage SMTP email settings for the daily report.
+
+        SMTP is used globally for all subjects. Configure only in one subject entry.
+        The first entry with smtp_enabled=True is used for sending.
+        """
+        if user_input is not None:
+            new_options = dict(self.config_entry.options)
+            new_options[CONF_SMTP_ENABLED] = user_input.get(CONF_SMTP_ENABLED, False)
+            new_options[CONF_SMTP_HOST] = user_input.get(CONF_SMTP_HOST, "")
+            new_options[CONF_SMTP_PORT] = int(user_input.get(CONF_SMTP_PORT, 465))
+            new_options[CONF_SMTP_ENCRYPTION] = user_input.get(CONF_SMTP_ENCRYPTION, "tls")
+            new_options[CONF_SMTP_SENDER] = user_input.get(CONF_SMTP_SENDER, "")
+            new_options[CONF_SMTP_SENDER_NAME] = user_input.get(CONF_SMTP_SENDER_NAME, "GlucoFarmer")
+            new_options[CONF_SMTP_USERNAME] = user_input.get(CONF_SMTP_USERNAME, "")
+            new_options[CONF_SMTP_PASSWORD] = user_input.get(CONF_SMTP_PASSWORD, "")
+            new_options[CONF_SMTP_RECIPIENTS] = user_input.get(CONF_SMTP_RECIPIENTS, "")
+            return self.async_create_entry(title="", data=new_options)
+
+        cur = self.config_entry.options
+        return self.async_show_form(
+            step_id="manage_email_settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SMTP_ENABLED,
+                        default=cur.get(CONF_SMTP_ENABLED, False),
+                    ): BooleanSelector(),
+                    vol.Optional(
+                        CONF_SMTP_HOST,
+                        default=cur.get(CONF_SMTP_HOST, ""),
+                    ): TextSelector(),
+                    vol.Optional(
+                        CONF_SMTP_PORT,
+                        default=cur.get(CONF_SMTP_PORT, 465),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1, max=65535, step=1, mode=NumberSelectorMode.BOX
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_SMTP_ENCRYPTION,
+                        default=cur.get(CONF_SMTP_ENCRYPTION, "tls"),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "tls", "label": "TLS (Port 465)"},
+                                {"value": "starttls", "label": "STARTTLS (Port 587)"},
+                            ]
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_SMTP_SENDER,
+                        default=cur.get(CONF_SMTP_SENDER, ""),
+                    ): TextSelector(),
+                    vol.Optional(
+                        CONF_SMTP_SENDER_NAME,
+                        default=cur.get(CONF_SMTP_SENDER_NAME, "GlucoFarmer"),
+                    ): TextSelector(),
+                    vol.Optional(
+                        CONF_SMTP_USERNAME,
+                        default=cur.get(CONF_SMTP_USERNAME, ""),
+                    ): TextSelector(),
+                    vol.Optional(
+                        CONF_SMTP_PASSWORD,
+                        default=cur.get(CONF_SMTP_PASSWORD, ""),
+                    ): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                    vol.Optional(
+                        CONF_SMTP_RECIPIENTS,
+                        default=cur.get(CONF_SMTP_RECIPIENTS, ""),
+                    ): TextSelector(),
+                }
+            ),
         )
 
     async def async_step_remove_preset(

@@ -23,7 +23,8 @@
         "menu_options": {
           "manage_insulin_products": "Insulinprodukte verwalten",
           "manage_feeding_categories": "Fuetterungskategorien verwalten",
-          "manage_presets": "Presets verwalten"
+          "manage_presets": "Presets verwalten",
+          "manage_email_settings": "E-Mail-Einstellungen (Tagesbericht)"
         }
       },
       "manage_insulin_products": {
@@ -89,6 +90,21 @@
         "title": "Preset entfernen",
         "data": {
           "preset": "Zu entfernendes Preset"
+        }
+      },
+      "manage_email_settings": {
+        "title": "E-Mail-Einstellungen",
+        "description": "SMTP wird global fuer alle Profile verwendet. Nur in einem Profil konfigurieren.",
+        "data": {
+          "smtp_enabled": "Tagesbericht per E-Mail senden",
+          "smtp_host": "SMTP-Server",
+          "smtp_port": "SMTP-Port",
+          "smtp_encryption": "Verschluesselung",
+          "smtp_sender": "Absender-E-Mail-Adresse",
+          "smtp_sender_name": "Absendername",
+          "smtp_username": "Benutzername",
+          "smtp_password": "Passwort",
+          "smtp_recipients": "Empfaenger (kommagetrennt)"
         }
       }
     },

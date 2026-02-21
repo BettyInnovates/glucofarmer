@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import logging
+import smtplib
+import ssl
 from typing import Any
 
 import voluptuous as vol
@@ -27,6 +33,15 @@ from .const import (
     ATTR_PRODUCT,
     ATTR_TIMESTAMP,
     CONF_GLUCOSE_SENSOR,
+    CONF_SMTP_ENABLED,
+    CONF_SMTP_ENCRYPTION,
+    CONF_SMTP_HOST,
+    CONF_SMTP_PASSWORD,
+    CONF_SMTP_PORT,
+    CONF_SMTP_RECIPIENTS,
+    CONF_SMTP_SENDER,
+    CONF_SMTP_SENDER_NAME,
+    CONF_SMTP_USERNAME,
     CONF_SUBJECT_NAME,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_HIGH_THRESHOLD,
@@ -381,6 +396,115 @@ async def _send_notification(
         _LOGGER.debug("Notify service not available, using persistent notification only")
 
 
+def _get_smtp_config(hass: HomeAssistant) -> dict | None:
+    """Return SMTP config from the first entry that has smtp_enabled=True.
+
+    SMTP is treated as a global setting: only one subject entry needs to be
+    configured. Returns None if no entry has SMTP enabled.
+    """
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        opts = entry.options
+        if not opts.get(CONF_SMTP_ENABLED):
+            continue
+        recipients = [
+            r.strip()
+            for r in opts.get(CONF_SMTP_RECIPIENTS, "").split(",")
+            if r.strip()
+        ]
+        if not recipients:
+            continue
+        return {
+            "host": opts.get(CONF_SMTP_HOST, ""),
+            "port": int(opts.get(CONF_SMTP_PORT, 465)),
+            "encryption": opts.get(CONF_SMTP_ENCRYPTION, "tls"),
+            "sender": opts.get(CONF_SMTP_SENDER, ""),
+            "sender_name": opts.get(CONF_SMTP_SENDER_NAME, "GlucoFarmer"),
+            "username": opts.get(CONF_SMTP_USERNAME, ""),
+            "password": opts.get(CONF_SMTP_PASSWORD, ""),
+            "recipients": recipients,
+        }
+    return None
+
+
+def _build_csv(readings: list[tuple[datetime, float]]) -> str:
+    """Build a semicolon-separated CSV string from glucose readings.
+
+    Returns a plain UTF-8 string. Caller should encode with utf-8-sig
+    (adds BOM) for Excel compatibility.
+    Timestamps are converted to local timezone, ISO 8601 with offset.
+    """
+    lines = ["Timestamp;Glukose_mgdL"]
+    for ts, value in sorted(readings, key=lambda x: x[0]):
+        local_ts = dt_util.as_local(ts)
+        lines.append(f"{local_ts.isoformat(timespec='seconds')};{int(round(value))}")
+    return "\n".join(lines)
+
+
+async def _send_daily_report_email(
+    hass: HomeAssistant,
+    smtp_config: dict,
+    subject_line: str,
+    body: str,
+    attachments: list[tuple[str, str]],
+) -> None:
+    """Send daily report email with CSV file attachments via smtplib.
+
+    Runs the blocking SMTP call in an executor thread so the HA event loop
+    is not blocked. Errors are logged but do not propagate -- the persistent
+    notification is always created regardless of email success.
+
+    Args:
+        attachments: List of (filename, csv_content_str) tuples.
+                     Content is encoded as UTF-8 with BOM for Excel.
+    """
+    def _do_send() -> None:
+        msg = MIMEMultipart()
+        msg["From"] = f"{smtp_config['sender_name']} <{smtp_config['sender']}>"
+        msg["To"] = ", ".join(smtp_config["recipients"])
+        msg["Subject"] = subject_line
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        for filename, csv_content in attachments:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(csv_content.encode("utf-8-sig"))
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                "attachment",
+                filename=filename,
+            )
+            msg.attach(part)
+
+        host = smtp_config["host"]
+        port = smtp_config["port"]
+        if smtp_config["encryption"] == "tls":
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(host, port, context=context) as server:
+                server.login(smtp_config["username"], smtp_config["password"])
+                server.sendmail(
+                    smtp_config["sender"],
+                    smtp_config["recipients"],
+                    msg.as_string(),
+                )
+        else:  # starttls
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                server.login(smtp_config["username"], smtp_config["password"])
+                server.sendmail(
+                    smtp_config["sender"],
+                    smtp_config["recipients"],
+                    msg.as_string(),
+                )
+
+    try:
+        await hass.async_add_executor_job(_do_send)
+        _LOGGER.info(
+            "Daily report email sent to %s", smtp_config["recipients"]
+        )
+    except Exception as err:
+        _LOGGER.error("Failed to send daily report email: %s", err)
+
+
 @callback
 def _schedule_daily_report(hass: HomeAssistant) -> None:
     """Schedule next daily report at 00:05, reschedules itself after firing."""
@@ -441,6 +565,8 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         "=" * 60,
         "",
     ]
+    # Collect readings per subject for CSV attachments
+    subject_readings: dict[str, list[tuple[datetime, float]]] = {}
 
     for entry in entries:
         subject_name = entry.data.get(CONF_SUBJECT_NAME, "Unknown")
@@ -488,6 +614,8 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
                     else:
                         continue
                 readings.append((state.last_changed, value))
+
+        subject_readings[subject_name] = readings
 
         if not readings:
             lines.append(f"{subject_name}: No readings recorded for {yesterday}")
@@ -592,3 +720,19 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             "notification_id": f"glucofarmer_daily_report_{yesterday}",
         },
     )
+
+    # Send email with per-subject CSV attachments
+    smtp_config = _get_smtp_config(hass)
+    if smtp_config:
+        attachments = [
+            (f"{name}_{yesterday}.csv", _build_csv(readings))
+            for name, readings in subject_readings.items()
+            if readings
+        ]
+        await _send_daily_report_email(
+            hass,
+            smtp_config,
+            f"GlucoFarmer daily report - {yesterday}",
+            report_text,
+            attachments,
+        )

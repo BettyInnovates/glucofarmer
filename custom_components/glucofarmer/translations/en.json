@@ -23,7 +23,8 @@
         "menu_options": {
           "manage_insulin_products": "Manage insulin products",
           "manage_feeding_categories": "Manage feeding categories",
-          "manage_presets": "Manage presets"
+          "manage_presets": "Manage presets",
+          "manage_email_settings": "Email settings (daily report)"
         }
       },
       "manage_insulin_products": {
@@ -89,6 +90,21 @@
         "title": "Remove preset",
         "data": {
           "preset": "Preset to remove"
+        }
+      },
+      "manage_email_settings": {
+        "title": "Email settings",
+        "description": "SMTP is used globally for all subjects. Configure only in one profile entry.",
+        "data": {
+          "smtp_enabled": "Send daily report by email",
+          "smtp_host": "SMTP host",
+          "smtp_port": "SMTP port",
+          "smtp_encryption": "Encryption",
+          "smtp_sender": "Sender email address",
+          "smtp_sender_name": "Sender name",
+          "smtp_username": "Username",
+          "smtp_password": "Password",
+          "smtp_recipients": "Recipients (comma-separated)"
         }
       }
     },

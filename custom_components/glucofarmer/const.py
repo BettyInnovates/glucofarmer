@@ -15,6 +15,17 @@ CONF_INSULIN_PRODUCTS = "insulin_products"
 CONF_FEEDING_CATEGORIES = "feeding_categories"
 CONF_PRESETS = "presets"
 
+# SMTP / E-Mail options (global -- nur in einer Subject-Entry konfigurieren)
+CONF_SMTP_ENABLED = "smtp_enabled"
+CONF_SMTP_HOST = "smtp_host"
+CONF_SMTP_PORT = "smtp_port"
+CONF_SMTP_ENCRYPTION = "smtp_encryption"
+CONF_SMTP_SENDER = "smtp_sender"
+CONF_SMTP_SENDER_NAME = "smtp_sender_name"
+CONF_SMTP_USERNAME = "smtp_username"
+CONF_SMTP_PASSWORD = "smtp_password"
+CONF_SMTP_RECIPIENTS = "smtp_recipients"
+
 # Default thresholds (mg/dL)
 DEFAULT_LOW_THRESHOLD = 70
 DEFAULT_HIGH_THRESHOLD = 180
