@@ -75,10 +75,15 @@ def _build_overview_view(
                 "show_states": True,
             },
             "graph_span": "6h",
-            "yaxis": [{"min": 20, "max": 350, "opposite": False}],
             "apex_config": {
                 "chart": {"height": 350},
                 "legend": {"show": True},
+                "yaxis": {
+                    "min": 0,
+                    "max": 350,
+                    "opposite": True,
+                    "tickAmount": 7,
+                },
                 "annotations": {
                     "yaxis": [
                         {
@@ -87,9 +92,11 @@ def _build_overview_view(
                             "fillColor": "#EF5350",
                             "opacity": 0.12,
                             "label": {
-                                "text": "Kritisch niedrig",
+                                "text": "Kritisch (55)",
                                 "position": "left",
-                                "style": {"color": "#EF5350"},
+                                "offsetX": 5,
+                                "offsetY": 22,
+                                "style": {"color": "#EF5350", "background": "transparent"},
                             },
                         },
                         {
@@ -100,7 +107,9 @@ def _build_overview_view(
                             "label": {
                                 "text": "Niedrig",
                                 "position": "left",
-                                "style": {"color": "#FF9800"},
+                                "offsetX": 5,
+                                "offsetY": 6,
+                                "style": {"color": "#FF9800", "background": "transparent"},
                             },
                         },
                         {
@@ -111,7 +120,9 @@ def _build_overview_view(
                             "label": {
                                 "text": "Normal",
                                 "position": "left",
-                                "style": {"color": "#4CAF50"},
+                                "offsetX": 5,
+                                "offsetY": 46,
+                                "style": {"color": "#4CAF50", "background": "transparent"},
                             },
                         },
                         {
@@ -122,7 +133,9 @@ def _build_overview_view(
                             "label": {
                                 "text": "Hoch",
                                 "position": "left",
-                                "style": {"color": "#FF9800"},
+                                "offsetX": 5,
+                                "offsetY": 29,
+                                "style": {"color": "#FF9800", "background": "transparent"},
                             },
                         },
                         {
@@ -133,7 +146,9 @@ def _build_overview_view(
                             "label": {
                                 "text": "Sehr hoch",
                                 "position": "left",
-                                "style": {"color": "#EF5350"},
+                                "offsetX": 5,
+                                "offsetY": 41,
+                                "style": {"color": "#EF5350", "background": "transparent"},
                             },
                         },
                     ],
@@ -509,23 +524,26 @@ def _build_stats_view(
                             },
                         },
                     },
-                    "yaxis": [{
-                        "min": 20,
+                    "yaxis": {
+                        "min": 0,
                         "max": 350,
-                        "opposite": False,
-                        "tickAmount": 6,
-                        "title": {"text": "mg/dL"},
-                    }],
+                        "opposite": True,
+                        "tickAmount": 7,
+                    },
                     "annotations": {
                         "yaxis": [
                             {"y": 55, "borderColor": "#FF0000",
-                             "label": {"text": "Kritisch", "position": "left"}},
+                             "label": {"text": "Kritisch (55)", "position": "left",
+                                       "offsetX": 5, "style": {"background": "transparent", "color": "#FF0000"}}},
                             {"y": 70, "borderColor": "#FFA500",
-                             "label": {"text": "Niedrig", "position": "left"}},
+                             "label": {"text": "Niedrig", "position": "left",
+                                       "offsetX": 5, "style": {"background": "transparent", "color": "#FFA500"}}},
                             {"y": 180, "borderColor": "#FFA500",
-                             "label": {"text": "Hoch", "position": "left"}},
+                             "label": {"text": "Hoch", "position": "left",
+                                       "offsetX": 5, "style": {"background": "transparent", "color": "#FFA500"}}},
                             {"y": 250, "borderColor": "#FF0000",
-                             "label": {"text": "Sehr hoch", "position": "left"}},
+                             "label": {"text": "Sehr hoch", "position": "left",
+                                       "offsetX": 5, "style": {"background": "transparent", "color": "#FF0000"}}},
                         ],
                     },
                 },
