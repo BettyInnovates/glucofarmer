@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -36,6 +38,10 @@ _LOGGER = logging.getLogger(__name__)
 
 _SCAN_INTERVAL = timedelta(seconds=60)
 _READING_INTERVAL_MINUTES = 5  # Dexcom sends one reading every 5 minutes
+
+# String states from Dexcom when glucose is outside sensor range
+_LOW_STATES = {"low", "niedrig"}
+_HIGH_STATES = {"high", "hoch"}
 
 type GlucoFarmerConfigEntry = ConfigEntry[GlucoFarmerCoordinator]
 
@@ -103,32 +109,11 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self.event_timestamp: str = ""
         self.archive_event_id: str = ""
 
-        # Deduplication: only log genuinely new Dexcom readings
-        self._last_tracked_sensor_changed: datetime | None = None
         # Last time we had a valid glucose reading (used for age when sensor goes unavailable)
         self._last_valid_reading_time: datetime | None = None
-        # Restored from store on first run after restart (once is enough)
-        self._store_restored: bool = False
-
-    def _restore_last_reading_time(self) -> None:
-        """Restore last valid reading timestamp from persistent store after restart."""
-        readings = self.store.get_readings_today(self.subject_name)
-        if not readings:
-            now = datetime.now()
-            start = (now - timedelta(hours=24)).isoformat()
-            readings = self.store.get_readings_for_range(
-                self.subject_name, start, now.isoformat()
-            )
-        if readings:
-            last_ts = max(r["timestamp"] for r in readings)
-            self._last_valid_reading_time = datetime.fromisoformat(last_ts)
 
     async def _async_update_data(self) -> GlucoFarmerData:
         """Fetch data from Dexcom sensors and compute stats."""
-        if not self._store_restored:
-            self._restore_last_reading_time()
-            self._store_restored = True
-
         glucose_value = self._get_sensor_value(self.glucose_sensor_id)
         trend_value = self._get_sensor_state(self.trend_sensor_id)
 
@@ -157,16 +142,17 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         # Determine glucose status
         glucose_status = self._compute_status(glucose_value, reading_age)
 
-        # Persist reading to store (only new Dexcom values, deduplicated)
-        await self._track_reading(glucose_value, glucose_status, last_reading_time)
-
         # Get selected time range for zone stats
         hours = self._get_chart_timerange()
 
-        # Compute 5-zone stats from persistent store
-        zones = self._compute_zone_stats(hours)
-        completeness_today_pct, today_actual, today_expected = self._compute_data_completeness_today()
-        completeness_range_pct, range_actual, range_expected = self._compute_data_completeness_range(hours)
+        # Compute 5-zone stats and completeness from HA Recorder
+        now_aware = datetime.now().astimezone()
+        midnight_aware = now_aware.replace(hour=0, minute=0, second=0, microsecond=0)
+        range_start_aware = now_aware - timedelta(hours=hours)
+
+        zones = await self._compute_zone_stats(range_start_aware, now_aware)
+        completeness_today_pct, today_actual, today_expected = await self._compute_data_completeness(midnight_aware, now_aware)
+        completeness_range_pct, range_actual, range_expected = await self._compute_data_completeness(range_start_aware, now_aware)
 
         # Daily totals (always from midnight)
         daily_insulin = self._compute_daily_insulin()
@@ -196,6 +182,44 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             last_reading_time=last_reading_time,
             today_events=today_events,
         )
+
+    async def _get_readings_from_recorder(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> list[tuple[datetime, float]]:
+        """Fetch glucose readings from HA Recorder for the given time range.
+
+        Maps Low/High string states to threshold-based values.
+        Filters unknown/unavailable states.
+        Returns list of (utc_aware_timestamp, float_value) tuples.
+        """
+        instance = get_instance(self.hass)
+        if instance is None:
+            _LOGGER.warning("GlucoFarmer: Recorder not available")
+            return []
+
+        states_dict = await instance.async_add_executor_job(
+            state_changes_during_period,
+            self.hass, start_dt, end_dt, self.glucose_sensor_id,
+        )
+        raw_states = states_dict.get(self.glucose_sensor_id, [])
+
+        readings: list[tuple[datetime, float]] = []
+        for state in raw_states:
+            try:
+                value = float(state.state)
+            except (ValueError, TypeError):
+                s = state.state.lower() if state.state else ""
+                if s in _LOW_STATES:
+                    value = self.critical_low_threshold - 1
+                elif s in _HIGH_STATES:
+                    value = self.very_high_threshold + 1
+                else:
+                    continue  # unknown/unavailable -- skip
+            readings.append((state.last_changed, value))
+
+        return readings
 
     def _get_sensor_value(self, entity_id: str) -> float | None:
         """Get numeric value from a sensor entity."""
@@ -232,42 +256,6 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             return STATUS_HIGH
         return STATUS_NORMAL
 
-    async def _track_reading(
-        self,
-        glucose: float | None,
-        status: str,
-        sensor_changed: datetime | None,
-    ) -> None:
-        """Persist a glucose reading to the store.
-
-        Only saves when the Dexcom sensor's last_changed timestamp differs
-        from the previously tracked one (= a genuinely new 5-min reading).
-        All readings are stored persistently and survive HA restarts.
-        """
-        if glucose is None or status == STATUS_NO_DATA:
-            return
-
-        # Only record if this is a new Dexcom reading (different last_changed)
-        if (
-            sensor_changed is not None
-            and sensor_changed == self._last_tracked_sensor_changed
-        ):
-            return
-
-        self._last_tracked_sensor_changed = sensor_changed
-        # Store as local naive time so all timestamps are consistent with date filters
-        timestamp = (
-            sensor_changed.astimezone().replace(tzinfo=None).isoformat()
-            if sensor_changed
-            else datetime.now().isoformat()
-        )
-        await self.store.async_log_reading(
-            subject_name=self.subject_name,
-            value=glucose,
-            status=status,
-            timestamp=timestamp,
-        )
-
     def _get_chart_timerange(self) -> int:
         """Get selected chart timerange in hours from shared state."""
         domain_data = self.hass.data.get(DOMAIN, {})
@@ -277,39 +265,31 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         except (ValueError, AttributeError):
             return 24
 
-    def _compute_zone_stats(
-        self, hours: int
+    async def _compute_zone_stats(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
     ) -> tuple[float, float, float, float, float]:
-        """Compute 5-zone time percentages from persistent store.
-
-        Uses actual glucose values with current thresholds for accurate zones.
-        """
-        now = datetime.now()
-        start = (now - timedelta(hours=hours)).isoformat()
-        end = now.isoformat()
-        readings = self.store.get_readings_for_range(self.subject_name, start, end)
+        """Compute 5-zone time percentages from HA Recorder."""
+        readings = await self._get_readings_from_recorder(start_dt, end_dt)
         if not readings:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
         total = len(readings)
-        crit_low = sum(
-            1 for r in readings if r["value"] < self.critical_low_threshold
-        )
+        crit_low = sum(1 for _, v in readings if v < self.critical_low_threshold)
         low = sum(
-            1 for r in readings
-            if self.critical_low_threshold <= r["value"] < self.low_threshold
+            1 for _, v in readings
+            if self.critical_low_threshold <= v < self.low_threshold
         )
         in_range = sum(
-            1 for r in readings
-            if self.low_threshold <= r["value"] <= self.high_threshold
+            1 for _, v in readings
+            if self.low_threshold <= v <= self.high_threshold
         )
         high = sum(
-            1 for r in readings
-            if self.high_threshold < r["value"] <= self.very_high_threshold
+            1 for _, v in readings
+            if self.high_threshold < v <= self.very_high_threshold
         )
-        very_high = sum(
-            1 for r in readings if r["value"] > self.very_high_threshold
-        )
+        very_high = sum(1 for _, v in readings if v > self.very_high_threshold)
 
         return (
             round(crit_low / total * 100, 1),
@@ -320,34 +300,28 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         )
 
     def _gap_based_completeness(
-        self, readings: list[dict[str, Any]]
+        self,
+        timestamps: list[datetime],
+        end_dt: datetime,
     ) -> tuple[float, int, int]:
         """Calculate completeness from gaps between consecutive readings.
 
-        Returns (pct, actual, total_expected) where total_expected = actual + missed.
-        Missed readings are derived from gaps > 10 min between stored readings.
-        This approach is database-driven: HA restarts do not inflate the missed count,
-        and two subjects on the same sensor always produce identical results.
+        Appends end_dt as a boundary so the gap from the last reading until
+        now is counted -- fixes under-reporting of missed readings when the
+        sensor has been offline for a while.
+
+        Returns (pct, actual, total_expected).
         """
-        actual = len(readings)
+        actual = len(timestamps)
         if actual == 0:
             return 0.0, 0, 0
-        if actual == 1:
-            return 100.0, 1, 1
 
-        def _to_local_naive(ts: str) -> datetime:
-            dt = datetime.fromisoformat(ts)
-            # Normalize UTC-aware (old data) and naive local (new data) to naive local
-            if dt.tzinfo is not None:
-                dt = dt.astimezone().replace(tzinfo=None)
-            return dt
-
-        timestamps = sorted(_to_local_naive(r["timestamp"]) for r in readings)
+        sorted_ts = sorted(timestamps)
+        boundary_ts = sorted_ts + [end_dt]
 
         missed = 0
-        for i in range(1, len(timestamps)):
-            gap_minutes = (timestamps[i] - timestamps[i - 1]).total_seconds() / 60
-            # 5-min gap = 1 reading (normal), 10-min = 2 expected → 1 missed
+        for i in range(1, len(boundary_ts)):
+            gap_minutes = (boundary_ts[i] - boundary_ts[i - 1]).total_seconds() / 60
             missed_in_gap = max(0, round(gap_minutes / _READING_INTERVAL_MINUTES) - 1)
             missed += missed_in_gap
 
@@ -355,18 +329,15 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         pct = round(actual / total_expected * 100, 1)
         return pct, actual, total_expected
 
-    def _compute_data_completeness_today(self) -> tuple[float, int, int]:
-        """Gap-based completeness since local midnight. Returns (pct, actual, total_expected)."""
-        readings = self.store.get_readings_today(self.subject_name)
-        return self._gap_based_completeness(readings)
-
-    def _compute_data_completeness_range(self, hours: int) -> tuple[float, int, int]:
-        """Gap-based completeness for selected chart timerange. Returns (pct, actual, total_expected)."""
-        now = datetime.now()
-        start = (now - timedelta(hours=hours)).isoformat()
-        end = now.isoformat()
-        readings = self.store.get_readings_for_range(self.subject_name, start, end)
-        return self._gap_based_completeness(readings)
+    async def _compute_data_completeness(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> tuple[float, int, int]:
+        """Gap-based completeness for a time range. Returns (pct, actual, total_expected)."""
+        readings = await self._get_readings_from_recorder(start_dt, end_dt)
+        timestamps = [ts for ts, _ in readings]
+        return self._gap_based_completeness(timestamps, end_dt)
 
     def _compute_daily_insulin(self) -> float:
         """Compute total insulin IU administered today."""

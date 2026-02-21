@@ -14,6 +14,9 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_point_in_time, async_track_state_change_event
 import homeassistant.util.dt as dt_util
 
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
+
 from .const import (
     ATTR_AMOUNT,
     ATTR_CATEGORY,
@@ -23,6 +26,7 @@ from .const import (
     ATTR_SUBJECT_NAME,
     ATTR_PRODUCT,
     ATTR_TIMESTAMP,
+    CONF_GLUCOSE_SENSOR,
     CONF_SUBJECT_NAME,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_HIGH_THRESHOLD,
@@ -173,9 +177,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry)
         if e.entry_id != entry.entry_id
     ]
     if not remaining:
-        # Flush any buffered readings before shutdown
-        store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
-        await store.async_flush_readings()
         if "daily_report_unsub" in hass.data[DOMAIN]:
             hass.data[DOMAIN]["daily_report_unsub"]()
         hass.data.pop(DOMAIN, None)
@@ -423,14 +424,16 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
     domain_data["last_report_date"] = today_str
     store: GlucoFarmerStore = domain_data["store"]
 
-    # Flush any buffered readings before generating report
-    await store.async_flush_readings()
-
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         return
 
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday_start = (
+        now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    ).astimezone()
+    yesterday_end = yesterday_start + timedelta(days=1)
+    recorder_instance = get_instance(hass)
 
     # Build report
     lines = [
@@ -441,22 +444,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
 
     for entry in entries:
         subject_name = entry.data.get(CONF_SUBJECT_NAME, "Unknown")
-
-        # Get yesterday's readings from persistent store
-        readings = store.get_readings_for_date(subject_name, yesterday)
-
-        # Get yesterday's events from persistent store
-        insulin_events = store.get_events_for_date(
-            subject_name, yesterday, EVENT_TYPE_INSULIN
-        )
-        feeding_events = store.get_events_for_date(
-            subject_name, yesterday, EVENT_TYPE_FEEDING
-        )
-
-        if not readings:
-            lines.append(f"{subject_name}: No readings recorded for {yesterday}")
-            lines.append("")
-            continue
+        glucose_sensor_id = entry.data.get(CONF_GLUCOSE_SENSOR, "")
 
         # Get thresholds from coordinator (if running) or use defaults
         coordinator: GlucoFarmerCoordinator | None = getattr(
@@ -473,27 +461,46 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             high = DEFAULT_HIGH_THRESHOLD
             very_high = DEFAULT_VERY_HIGH_THRESHOLD
 
-        # Compute 5-zone stats from stored reading values
+        # Get yesterday's events from persistent store
+        insulin_events = store.get_events_for_date(
+            subject_name, yesterday, EVENT_TYPE_INSULIN
+        )
+        feeding_events = store.get_events_for_date(
+            subject_name, yesterday, EVENT_TYPE_FEEDING
+        )
+
+        # Get yesterday's readings from HA Recorder
+        readings: list[tuple[datetime, float]] = []
+        if recorder_instance is not None and glucose_sensor_id:
+            states_dict = await recorder_instance.async_add_executor_job(
+                state_changes_during_period,
+                hass, yesterday_start, yesterday_end, glucose_sensor_id,
+            )
+            for state in states_dict.get(glucose_sensor_id, []):
+                try:
+                    value = float(state.state)
+                except (ValueError, TypeError):
+                    s = state.state.lower() if state.state else ""
+                    if s in {"low", "niedrig"}:
+                        value = crit_low - 1
+                    elif s in {"high", "hoch"}:
+                        value = very_high + 1
+                    else:
+                        continue
+                readings.append((state.last_changed, value))
+
+        if not readings:
+            lines.append(f"{subject_name}: No readings recorded for {yesterday}")
+            lines.append("")
+            continue
+
+        # Compute 5-zone stats
         total = len(readings)
-        n_critical_low = 0
-        n_low = 0
-        n_in_range = 0
-        n_high = 0
-        n_very_high = 0
-        for r in readings:
-            val = r.get("value")
-            if val is None:
-                continue
-            if val < crit_low:
-                n_critical_low += 1
-            elif val < low:
-                n_low += 1
-            elif val <= high:
-                n_in_range += 1
-            elif val <= very_high:
-                n_high += 1
-            else:
-                n_very_high += 1
+        n_critical_low = sum(1 for _, v in readings if v < crit_low)
+        n_low = sum(1 for _, v in readings if crit_low <= v < low)
+        n_in_range = sum(1 for _, v in readings if low <= v <= high)
+        n_high = sum(1 for _, v in readings if high < v <= very_high)
+        n_very_high = sum(1 for _, v in readings if v > very_high)
 
         pct_crit_low = round(n_critical_low / total * 100, 1)
         pct_low = round(n_low / total * 100, 1)
@@ -501,9 +508,15 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         pct_high = round(n_high / total * 100, 1)
         pct_very_high = round(n_very_high / total * 100, 1)
 
-        # Data completeness: 288 expected readings per day (24h * 60min / 5min)
-        expected_readings = 288
-        completeness = round(min(total / expected_readings * 100, 100.0), 1)
+        # Gap-based data completeness
+        timestamps = sorted(ts for ts, _ in readings)
+        boundary = timestamps + [yesterday_end]
+        missed = 0
+        for i in range(1, len(boundary)):
+            gap_minutes = (boundary[i] - boundary[i - 1]).total_seconds() / 60
+            missed += max(0, round(gap_minutes / 5) - 1)
+        total_expected = total + missed
+        completeness = round(total / total_expected * 100, 1) if total_expected > 0 else 0.0
 
         # Daily totals from events
         insulin_total = sum(e.get("amount", 0) for e in insulin_events)
