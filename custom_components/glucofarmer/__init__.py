@@ -54,6 +54,7 @@ from .const import (
     SERVICE_DELETE_EVENT,
     SERVICE_LOG_FEEDING,
     SERVICE_LOG_INSULIN,
+    SERVICE_SEND_DAILY_REPORT,
     STATUS_CRITICAL_LOW,
     STATUS_HIGH,
     STATUS_LOW,
@@ -255,6 +256,16 @@ def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_EVENT, handle_delete_event, schema=SERVICE_DELETE_EVENT_SCHEMA
+    )
+
+    async def handle_send_daily_report(_call: ServiceCall) -> None:
+        """Manually trigger the daily report (for testing)."""
+        domain_data = hass.data.get(DOMAIN, {})
+        domain_data.pop("last_report_date", None)
+        await _send_daily_report(hass)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SEND_DAILY_REPORT, handle_send_daily_report
     )
 
 

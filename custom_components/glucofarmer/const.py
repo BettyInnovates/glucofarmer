@@ -80,6 +80,7 @@ STORAGE_KEY = f"{DOMAIN}_events"
 SERVICE_LOG_INSULIN = "log_insulin"
 SERVICE_LOG_FEEDING = "log_feeding"
 SERVICE_DELETE_EVENT = "delete_event"
+SERVICE_SEND_DAILY_REPORT = "send_daily_report"
 
 # Attributes
 ATTR_SUBJECT_NAME = "subject_name"
