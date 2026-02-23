@@ -39,6 +39,11 @@ _LOGGER = logging.getLogger(__name__)
 _SCAN_INTERVAL = timedelta(seconds=60)
 _READING_INTERVAL_MINUTES = 5  # Dexcom sends one reading every 5 minutes
 
+# Maximum weight (minutes) assigned to the last valid reading before a gap marker.
+# One Dexcom transmission cycle -- after one cycle without a new reading we cannot
+# guarantee the previous value is still valid.
+_GAP_CAP_MINUTES = 5.0
+
 # String states from Dexcom when glucose is outside sensor range
 _LOW_STATES = {"low", "niedrig"}
 _HIGH_STATES = {"high", "hoch"}
@@ -139,8 +144,16 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             ).total_seconds() / 60.0
             last_reading_time = self._last_valid_reading_time
 
+        # Determine if the sensor currently reports a gap state.
+        # STATUS_NO_DATA is only raised when the sensor actively signals unavailability.
+        # A stable numeric reading (unchanged value, growing last_changed age) is NOT a gap.
+        sensor_unavailable = (
+            glucose_state is None
+            or glucose_state.state in ("unknown", "unavailable")
+        )
+
         # Determine glucose status
-        glucose_status = self._compute_status(glucose_value, reading_age)
+        glucose_status = self._compute_status(glucose_value, sensor_unavailable)
 
         # Get selected time range for zone stats
         hours = self._get_chart_timerange()
@@ -187,12 +200,15 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self,
         start_dt: datetime,
         end_dt: datetime,
-    ) -> list[tuple[datetime, float]]:
+    ) -> list[tuple[datetime, float | None]]:
         """Fetch glucose readings from HA Recorder for the given time range.
 
         Maps Low/High string states to threshold-based values.
-        Filters unknown/unavailable states.
-        Returns list of (utc_aware_timestamp, float_value) tuples.
+        Retains unknown/unavailable states as gap markers (value=None).
+
+        Returns list of (utc_aware_timestamp, value_or_none) sorted by timestamp.
+        None values indicate genuine data gaps (signal loss, sensor unavailable)
+        and are essential for accurate time-weighting and alarm logic.
         """
         instance = get_instance(self.hass)
         if instance is None:
@@ -205,10 +221,10 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         )
         raw_states = states_dict.get(self.glucose_sensor_id, [])
 
-        readings: list[tuple[datetime, float]] = []
+        readings: list[tuple[datetime, float | None]] = []
         for state in raw_states:
             try:
-                value = float(state.state)
+                value: float | None = float(state.state)
             except (ValueError, TypeError):
                 s = state.state.lower() if state.state else ""
                 if s in _LOW_STATES:
@@ -216,7 +232,7 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
                 elif s in _HIGH_STATES:
                     value = self.very_high_threshold + 1
                 else:
-                    continue  # unknown/unavailable -- skip
+                    value = None  # unknown/unavailable -- retain as gap marker
             readings.append((state.last_changed, value))
 
         return readings
@@ -239,12 +255,16 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         return state.state
 
     def _compute_status(
-        self, glucose: float | None, reading_age: float | None
+        self, glucose: float | None, sensor_unavailable: bool
     ) -> str:
-        """Compute glucose status based on value and thresholds."""
-        if reading_age is not None and reading_age > self.data_timeout:
-            return STATUS_NO_DATA
-        if glucose is None:
+        """Compute glucose status based on current sensor state and thresholds.
+
+        STATUS_NO_DATA is returned only when the sensor actively reports
+        unknown or unavailable -- a genuine signal loss or connectivity gap.
+        A valid numeric reading that has not changed (stable glucose) does NOT
+        produce STATUS_NO_DATA, regardless of how long ago last_changed was set.
+        """
+        if sensor_unavailable or glucose is None:
             return STATUS_NO_DATA
         if glucose < self.critical_low_threshold:
             return STATUS_CRITICAL_LOW
@@ -270,34 +290,69 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         start_dt: datetime,
         end_dt: datetime,
     ) -> tuple[float, float, float, float, float]:
-        """Compute 5-zone time percentages from HA Recorder."""
-        readings = await self._get_readings_from_recorder(start_dt, end_dt)
-        if not readings:
+        """Compute 5-zone time percentages from HA Recorder using time-weighting.
+
+        Each numeric reading contributes weight proportional to the time it
+        represents. Weight depends on what follows it in the sorted entry list:
+
+        - Next entry is another numeric reading (stable glucose, no gap):
+          weight = full duration between readings, uncapped.
+          Rationale: the value was genuinely stable for that entire period.
+
+        - Next entry is a gap marker (unknown/unavailable state):
+          weight = min(time_to_gap, _GAP_CAP_MINUTES).
+          Rationale: after one Dexcom cycle the previous value cannot be trusted.
+
+        - No next entry within range: weight = time to end_dt, uncapped.
+
+        Gap markers themselves contribute no weight to any zone.
+        """
+        entries = await self._get_readings_from_recorder(start_dt, end_dt)
+        if not entries:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
-        total = len(readings)
-        crit_low = sum(1 for _, v in readings if v < self.critical_low_threshold)
-        low = sum(
-            1 for _, v in readings
-            if self.critical_low_threshold <= v < self.low_threshold
-        )
-        in_range = sum(
-            1 for _, v in readings
-            if self.low_threshold <= v <= self.high_threshold
-        )
-        high = sum(
-            1 for _, v in readings
-            if self.high_threshold < v <= self.very_high_threshold
-        )
-        very_high = sum(1 for _, v in readings if v > self.very_high_threshold)
+        zone_weights = [0.0, 0.0, 0.0, 0.0, 0.0]
+
+        for i, (ts, value) in enumerate(entries):
+            if value is None:
+                continue  # gap marker -- contributes no zone time
+
+            if i + 1 < len(entries):
+                boundary_ts, next_val = entries[i + 1]
+                has_gap_next = next_val is None
+            else:
+                boundary_ts = end_dt
+                has_gap_next = False
+
+            duration_min = (boundary_ts - ts).total_seconds() / 60.0
+            weight = min(duration_min, _GAP_CAP_MINUTES) if has_gap_next else duration_min
+            weight = max(0.0, weight)
+
+            zone_weights[self._value_to_zone(value)] += weight
+
+        total_w = sum(zone_weights)
+        if total_w == 0.0:
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         return (
-            round(crit_low / total * 100, 1),
-            round(low / total * 100, 1),
-            round(in_range / total * 100, 1),
-            round(high / total * 100, 1),
-            round(very_high / total * 100, 1),
+            round(zone_weights[0] / total_w * 100, 1),
+            round(zone_weights[1] / total_w * 100, 1),
+            round(zone_weights[2] / total_w * 100, 1),
+            round(zone_weights[3] / total_w * 100, 1),
+            round(zone_weights[4] / total_w * 100, 1),
         )
+
+    def _value_to_zone(self, value: float) -> int:
+        """Map a glucose value to zone index (0=crit_low, 1=low, 2=in_range, 3=high, 4=very_high)."""
+        if value < self.critical_low_threshold:
+            return 0
+        if value < self.low_threshold:
+            return 1
+        if value <= self.high_threshold:
+            return 2
+        if value <= self.very_high_threshold:
+            return 3
+        return 4
 
     def _gap_based_completeness(
         self,
@@ -335,8 +390,9 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         end_dt: datetime,
     ) -> tuple[float, int, int]:
         """Gap-based completeness for a time range. Returns (pct, actual, total_expected)."""
-        readings = await self._get_readings_from_recorder(start_dt, end_dt)
-        timestamps = [ts for ts, _ in readings]
+        entries = await self._get_readings_from_recorder(start_dt, end_dt)
+        # Only count numeric readings -- gap markers (None) are not actual readings
+        timestamps = [ts for ts, v in entries if v is not None]
         return self._gap_based_completeness(timestamps, end_dt)
 
     def _compute_daily_insulin(self) -> float:

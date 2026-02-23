@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from email import encoders
+import statistics as stats_module
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -93,6 +94,10 @@ SERVICE_DELETE_EVENT_SCHEMA = vol.Schema(
         vol.Required(ATTR_EVENT_ID): cv.string,
     }
 )
+
+# Maximum weight (minutes) for the last valid reading before a data gap.
+# Mirrors coordinator._GAP_CAP_MINUTES -- one Dexcom transmission cycle.
+_GAP_CAP_MINUTES = 5.0
 
 # Alarm tracking per subject
 _alarm_state: dict[str, dict[str, bool]] = {}
@@ -442,12 +447,16 @@ def _build_csv(readings: list[tuple[datetime, float]]) -> str:
 
     Returns a plain UTF-8 string. Caller should encode with utf-8-sig
     (adds BOM) for Excel compatibility.
-    Timestamps are converted to local timezone, ISO 8601 with offset.
+    Two timestamp columns:
+    - Timestamp: ISO 8601 with timezone offset (for automated processing)
+    - Datum_Uhrzeit: German date format without offset (for Excel)
     """
-    lines = ["Timestamp;Glukose_mgdL"]
+    lines = ["Timestamp;Datum_Uhrzeit;Glukose_mgdL"]
     for ts, value in sorted(readings, key=lambda x: x[0]):
         local_ts = dt_util.as_local(ts)
-        lines.append(f"{local_ts.isoformat(timespec='seconds')};{int(round(value))}")
+        iso_ts = local_ts.isoformat(timespec="seconds")
+        de_ts = local_ts.strftime("%d.%m.%Y %H:%M:%S")
+        lines.append(f"{iso_ts};{de_ts};{int(round(value))}")
     return "\n".join(lines)
 
 
@@ -606,8 +615,10 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             subject_name, yesterday, EVENT_TYPE_FEEDING
         )
 
-        # Get yesterday's readings from HA Recorder
-        readings: list[tuple[datetime, float]] = []
+        # Get yesterday's readings from HA Recorder.
+        # Gap markers (unknown/unavailable) are retained as None values --
+        # they are essential for accurate time-weighting and completeness.
+        all_entries: list[tuple[datetime, float | None]] = []
         if recorder_instance is not None and glucose_sensor_id:
             states_dict = await recorder_instance.async_add_executor_job(
                 state_changes_during_period,
@@ -615,17 +626,19 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             )
             for state in states_dict.get(glucose_sensor_id, []):
                 try:
-                    value = float(state.state)
+                    entry_value: float | None = float(state.state)
                 except (ValueError, TypeError):
                     s = state.state.lower() if state.state else ""
                     if s in {"low", "niedrig"}:
-                        value = crit_low - 1
+                        entry_value = crit_low - 1
                     elif s in {"high", "hoch"}:
-                        value = very_high + 1
+                        entry_value = very_high + 1
                     else:
-                        continue
-                readings.append((state.last_changed, value))
+                        entry_value = None  # unknown/unavailable -- gap marker
+                all_entries.append((state.last_changed, entry_value))
 
+        # Numeric readings only (for CSV, completeness, min/max/median)
+        readings = [(ts, v) for ts, v in all_entries if v is not None]
         subject_readings[subject_name] = readings
 
         if not readings:
@@ -633,19 +646,63 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             lines.append("")
             continue
 
-        # Compute 5-zone stats
-        total = len(readings)
-        n_critical_low = sum(1 for _, v in readings if v < crit_low)
-        n_low = sum(1 for _, v in readings if crit_low <= v < low)
-        n_in_range = sum(1 for _, v in readings if low <= v <= high)
-        n_high = sum(1 for _, v in readings if high < v <= very_high)
-        n_very_high = sum(1 for _, v in readings if v > very_high)
+        # Unweighted stats (min, max, median -- time-weighting not critical here)
+        values = [v for _, v in readings]
+        glucose_min = int(round(min(values)))
+        glucose_max = int(round(max(values)))
+        glucose_median = round(stats_module.median(values), 1)
 
-        pct_crit_low = round(n_critical_low / total * 100, 1)
-        pct_low = round(n_low / total * 100, 1)
-        pct_in_range = round(n_in_range / total * 100, 1)
-        pct_high = round(n_high / total * 100, 1)
-        pct_very_high = round(n_very_high / total * 100, 1)
+        # Time-weighted zone percentages, mean and SD.
+        # Weight per reading = time until next event (no cap for stable glucose),
+        # capped at _GAP_CAP_MINUTES when the immediately following event is a gap marker.
+        zone_weights = [0.0, 0.0, 0.0, 0.0, 0.0]
+        weighted_readings: list[tuple[float, float]] = []  # (weight, value)
+
+        for i, (ts, value) in enumerate(all_entries):
+            if value is None:
+                continue  # gap marker -- contributes no zone time
+
+            if i + 1 < len(all_entries):
+                boundary_ts, next_val = all_entries[i + 1]
+                has_gap_next = next_val is None
+            else:
+                boundary_ts = yesterday_end
+                has_gap_next = False
+
+            duration_min = (boundary_ts - ts).total_seconds() / 60.0
+            w = min(duration_min, _GAP_CAP_MINUTES) if has_gap_next else duration_min
+            w = max(0.0, w)
+
+            if value < crit_low:
+                zone_weights[0] += w
+            elif value < low:
+                zone_weights[1] += w
+            elif value <= high:
+                zone_weights[2] += w
+            elif value <= very_high:
+                zone_weights[3] += w
+            else:
+                zone_weights[4] += w
+
+            weighted_readings.append((w, value))
+
+        total_w = sum(w for w, _ in weighted_readings)
+        if total_w > 0:
+            pct_crit_low = round(zone_weights[0] / total_w * 100, 1)
+            pct_low = round(zone_weights[1] / total_w * 100, 1)
+            pct_in_range = round(zone_weights[2] / total_w * 100, 1)
+            pct_high = round(zone_weights[3] / total_w * 100, 1)
+            pct_very_high = round(zone_weights[4] / total_w * 100, 1)
+            weighted_mean = sum(w * v for w, v in weighted_readings) / total_w
+            glucose_mean = round(weighted_mean, 1)
+            glucose_sd = round(
+                (sum(w * (v - weighted_mean) ** 2 for w, v in weighted_readings) / total_w) ** 0.5,
+                1,
+            ) if len(weighted_readings) > 1 else 0.0
+        else:
+            pct_crit_low = pct_low = pct_in_range = pct_high = pct_very_high = 0.0
+            glucose_mean = 0.0
+            glucose_sd = 0.0
 
         # Gap-based data completeness
         timestamps = sorted(ts for ts, _ in readings)
@@ -678,6 +735,8 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             f"{low}-{high} target | >{high} high | >{very_high} very high",
             f"  --- Yesterday ({yesterday}) ---",
             f"  Readings recorded: {total}",
+            f"  Min: {glucose_min} mg/dL  |  Max: {glucose_max} mg/dL",
+            f"  Mean: {glucose_mean} mg/dL  |  Median: {glucose_median} mg/dL  |  SD: {glucose_sd}",
             f"  Critical low (<{crit_low}): {pct_crit_low}%",
             f"  Low ({crit_low}-{low}): {pct_low}%",
             f"  In range ({low}-{high}): {pct_in_range}%",
