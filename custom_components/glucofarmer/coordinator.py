@@ -130,12 +130,16 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             "unknown",
             "unavailable",
         ):
-            last_changed = glucose_state.last_changed
+            # Use last_updated (not last_changed) so SYNC reflects when the
+            # sensor last polled, not when the glucose value last changed.
+            # For stable glucose last_changed grows stale while last_updated
+            # resets every ~6 min (assuming Dexcom calls async_set() each poll).
+            last_updated = glucose_state.last_updated
             reading_age = (
-                datetime.now(tz=last_changed.tzinfo) - last_changed
+                datetime.now(tz=last_updated.tzinfo) - last_updated
             ).total_seconds() / 60.0
-            last_reading_time = last_changed
-            self._last_valid_reading_time = last_changed
+            last_reading_time = last_updated
+            self._last_valid_reading_time = last_updated
         elif self._last_valid_reading_time is not None:
             # Sensor unavailable -- compute age from last known good reading
             reading_age = (
