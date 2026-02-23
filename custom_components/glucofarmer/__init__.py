@@ -705,6 +705,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             glucose_sd = 0.0
 
         # Gap-based data completeness
+        total = len(readings)
         timestamps = sorted(ts for ts, _ in readings)
         boundary = timestamps + [yesterday_end]
         missed = 0
