@@ -219,6 +219,8 @@ class GlucoFarmerNumberEntity(NumberEntity, RestoreEntity):
                 value = float(last_state.state)
                 self._attr_native_value = value
                 self.entity_description.setter_fn(self._coordinator, value)
+                if self.entity_description.entity_category == EntityCategory.CONFIG:
+                    self._coordinator.schedule_dashboard_refresh()
             except (ValueError, TypeError):
                 pass
 

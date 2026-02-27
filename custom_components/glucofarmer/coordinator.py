@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
@@ -125,6 +126,9 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
 
         # Timestamp when the current signal-loss event started (None = signal ok)
         self._signal_lost_since: datetime | None = None
+
+        # Pending debounced dashboard refresh task (used after startup restore)
+        self._dashboard_refresh_task: asyncio.Task | None = None
 
     async def _async_update_data(self) -> GlucoFarmerData:
         """Fetch data from Dexcom sensors and compute stats."""
@@ -309,6 +313,25 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             other.low_threshold = self.low_threshold
             other.high_threshold = self.high_threshold
             other.very_high_threshold = self.very_high_threshold
+
+    def schedule_dashboard_refresh(self) -> None:
+        """Schedule a debounced dashboard refresh.
+
+        Cancels any pending refresh and schedules a new one 200 ms later.
+        Multiple rapid calls (e.g. all number entities restoring on startup)
+        collapse into a single refresh once things settle.
+        """
+        if self._dashboard_refresh_task is not None and not self._dashboard_refresh_task.done():
+            self._dashboard_refresh_task.cancel()
+        self._dashboard_refresh_task = self.hass.async_create_task(
+            self._do_dashboard_refresh()
+        )
+
+    async def _do_dashboard_refresh(self) -> None:
+        """Wait briefly then regenerate dashboard with current threshold values."""
+        from .dashboard import async_update_dashboard  # avoid circular import at module level
+        await asyncio.sleep(0.2)
+        await async_update_dashboard(self.hass)
 
     def _compute_status(
         self, glucose: float | None, sensor_unavailable: bool

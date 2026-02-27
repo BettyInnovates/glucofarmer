@@ -244,7 +244,7 @@ def _build_overview_view(
                     "min": 0,
                     "max": yaxis_max,
                     "opposite": True,
-                    "tickAmount": 7,
+                    "tickAmount": yaxis_max // 50,
                 },
                 "annotations": {
                     "yaxis": _zone_annotations_fill(thresholds),
@@ -635,7 +635,7 @@ def _build_stats_view(
                         "min": 0,
                         "max": yaxis_max,
                         "opposite": True,
-                        "tickAmount": 7,
+                        "tickAmount": yaxis_max // 50,
                     },
                     "annotations": {
                         "yaxis": _zone_annotations_lines(thresholds),
