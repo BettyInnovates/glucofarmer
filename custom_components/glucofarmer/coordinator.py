@@ -285,7 +285,11 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         return state.state
 
     def _write_thresholds_to_shared(self) -> None:
-        """Write all 5 thresholds to hass.data[DOMAIN]['thresholds'] for global access."""
+        """Write thresholds to hass.data and propagate to all other coordinators.
+
+        Thresholds are global -- changing them via one subject's number entity
+        must update every coordinator so zone stats are consistent across subjects.
+        """
         if DOMAIN not in self.hass.data:
             self.hass.data[DOMAIN] = {}
         self.hass.data[DOMAIN]["thresholds"] = {
@@ -295,6 +299,16 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             "high": self.high_threshold,
             "very_high": self.very_high_threshold,
         }
+        # Propagate to all other subject coordinators
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            other = getattr(entry, "runtime_data", None)
+            if other is None or other is self:
+                continue
+            other.critical_low_threshold = self.critical_low_threshold
+            other.very_low_threshold = self.very_low_threshold
+            other.low_threshold = self.low_threshold
+            other.high_threshold = self.high_threshold
+            other.very_high_threshold = self.very_high_threshold
 
     def _compute_status(
         self, glucose: float | None, sensor_unavailable: bool
