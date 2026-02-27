@@ -659,6 +659,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
         # capped at _GAP_CAP_MINUTES when the immediately following event is a gap marker.
         zone_weights = [0.0, 0.0, 0.0, 0.0, 0.0]
         weighted_readings: list[tuple[float, float]] = []  # (weight, value)
+        covered_minutes = 0.0
 
         for i, (ts, value) in enumerate(all_entries):
             if value is None:
@@ -674,6 +675,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             duration_min = (boundary_ts - ts).total_seconds() / 60.0
             w = min(duration_min, _GAP_CAP_MINUTES) if has_gap_next else duration_min
             w = max(0.0, w)
+            covered_minutes += w
 
             if value < crit_low:
                 zone_weights[0] += w
@@ -706,16 +708,10 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             glucose_mean = 0.0
             glucose_sd = 0.0
 
-        # Gap-based data completeness
-        total = len(readings)
-        timestamps = sorted(ts for ts, _ in readings)
-        boundary = timestamps + [yesterday_end]
-        missed = 0
-        for i in range(1, len(boundary)):
-            gap_minutes = (boundary[i] - boundary[i - 1]).total_seconds() / 60
-            missed += max(0, round(gap_minutes / 5) - 1)
-        total_expected = total + missed
-        completeness = round(total / total_expected * 100, 1) if total_expected > 0 else 0.0
+        # Time-based data completeness
+        total_minutes = (yesterday_end - yesterday_start).total_seconds() / 60.0
+        uncovered_min = round(max(0.0, total_minutes - covered_minutes))
+        completeness = round(covered_minutes / total_minutes * 100, 1) if total_minutes > 0 else 0.0
 
         # Daily totals from events
         insulin_total = sum(e.get("amount", 0) for e in insulin_events)
@@ -737,7 +733,7 @@ async def _send_daily_report(hass: HomeAssistant) -> None:
             f"  Thresholds: <{crit_low} critical | <{low} low | "
             f"{low}-{high} target | >{high} high | >{very_high} very high",
             f"  --- Yesterday ({yesterday}) ---",
-            f"  Readings recorded: {total}",
+            f"  Without valid data: {uncovered_min} min",
             f"  Min: {glucose_min} mg/dL  |  Max: {glucose_max} mg/dL",
             f"  Mean: {glucose_mean} mg/dL  |  Median: {glucose_median} mg/dL  |  SD: {glucose_sd}",
             f"  Critical low (<{crit_low}): {pct_crit_low}%",
