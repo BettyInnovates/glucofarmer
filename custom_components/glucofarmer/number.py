@@ -214,6 +214,10 @@ class GlucoFarmerNumberEntity(NumberEntity, RestoreEntity):
         """Restore last known value after HA restart."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
+        # Fallback: core.restore_state JSON kann nach unclean restart fehlen/veraltet sein.
+        # Die HA State Machine wird von HA unabhaengig aus SQLite befuellt -- diese lesen.
+        if last_state is None or last_state.state in ("unknown", "unavailable"):
+            last_state = self.hass.states.get(self.entity_id)
         if last_state is not None and last_state.state not in ("unknown", "unavailable"):
             try:
                 value = float(last_state.state)
