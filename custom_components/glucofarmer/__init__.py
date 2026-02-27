@@ -124,8 +124,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
     else:
         store = hass.data[DOMAIN]["store"]
 
-    # Create coordinator
+    # Create coordinator and load persisted thresholds before first data refresh
+    # so zone stats are computed with the correct thresholds from the start.
     coordinator = GlucoFarmerCoordinator(hass, entry, store)
+    await coordinator.async_load_thresholds()
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
 

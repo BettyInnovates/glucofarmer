@@ -12,6 +12,7 @@ from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -50,6 +51,9 @@ _GAP_CAP_MINUTES = 5.0
 # String states from Dexcom when glucose is outside sensor range
 _LOW_STATES = {"low", "niedrig"}
 _HIGH_STATES = {"high", "hoch"}
+
+_THRESHOLD_STORAGE_KEY = f"{DOMAIN}_thresholds"
+_THRESHOLD_STORAGE_VERSION = 1
 
 # Maps threshold dict key → coordinator attribute name (used for targeted updates)
 _THRESHOLD_KEY_TO_ATTR: dict[str, str] = {
@@ -113,13 +117,14 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self.trend_sensor_id: str = entry.data[CONF_TREND_SENSOR]
         self.store = store
 
-        # Thresholds (updated by number entities)
+        # Thresholds (updated by number entities, persisted via async_load/save_thresholds)
         self.critical_low_threshold: float = DEFAULT_CRITICAL_LOW_THRESHOLD
         self.very_low_threshold: float = DEFAULT_VERY_LOW_THRESHOLD
         self.low_threshold: float = DEFAULT_LOW_THRESHOLD
         self.high_threshold: float = DEFAULT_HIGH_THRESHOLD
         self.very_high_threshold: float = DEFAULT_VERY_HIGH_THRESHOLD
         self.data_timeout: int = DEFAULT_DATA_TIMEOUT
+        self._threshold_store: Store | None = None
         self._write_thresholds_to_shared()
 
         # Input state (updated by number/select/text entities, read by button entities)
@@ -341,6 +346,38 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
                 if other is None or other is self:
                     continue
                 setattr(other, attr, value)
+
+    async def async_load_thresholds(self) -> None:
+        """Load thresholds from persistent storage and apply to coordinator.
+
+        Must be called in async_setup_entry BEFORE async_config_entry_first_refresh()
+        so zone stats use the correct thresholds from the very first update.
+        """
+        self._threshold_store = Store(
+            self.hass, _THRESHOLD_STORAGE_VERSION, _THRESHOLD_STORAGE_KEY
+        )
+        data = await self._threshold_store.async_load() or {}
+        if data:
+            self.critical_low_threshold = data.get("critical_low", self.critical_low_threshold)
+            self.very_low_threshold = data.get("very_low", self.very_low_threshold)
+            self.low_threshold = data.get("low", self.low_threshold)
+            self.high_threshold = data.get("high", self.high_threshold)
+            self.very_high_threshold = data.get("very_high", self.very_high_threshold)
+            self.data_timeout = int(data.get("data_timeout", self.data_timeout))
+        self._write_thresholds_to_shared()
+
+    async def async_save_thresholds(self) -> None:
+        """Persist current thresholds to storage."""
+        if self._threshold_store is None:
+            return
+        await self._threshold_store.async_save({
+            "critical_low": self.critical_low_threshold,
+            "very_low": self.very_low_threshold,
+            "low": self.low_threshold,
+            "high": self.high_threshold,
+            "very_high": self.very_high_threshold,
+            "data_timeout": self.data_timeout,
+        })
 
     def schedule_dashboard_refresh(self) -> None:
         """Schedule a debounced dashboard refresh.

@@ -211,16 +211,23 @@ class GlucoFarmerNumberEntity(NumberEntity, RestoreEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Restore last known value after HA restart."""
+        """Set initial value from coordinator (loaded from persistent storage)."""
         await super().async_added_to_hass()
+        if self.entity_description.entity_category == EntityCategory.CONFIG:
+            # Coordinator already has correct values from Store (loaded in async_setup_entry).
+            # Read directly from coordinator attribute -- no RestoreEntity needed.
+            value = getattr(self._coordinator, self.entity_description.key, None)
+            if value is not None:
+                self._attr_native_value = float(value)
+                self.async_write_ha_state()
+            self._coordinator.schedule_dashboard_refresh()
+            return
+        # Non-CONFIG entities (feeding_amount, insulin_amount): use RestoreEntity
         last_state = await self.async_get_last_state()
         if last_state is not None and last_state.state not in ("unknown", "unavailable"):
             try:
-                value = float(last_state.state)
-                self._attr_native_value = value
-                self.entity_description.setter_fn(self._coordinator, value)
-                if self.entity_description.entity_category == EntityCategory.CONFIG:
-                    self._coordinator.schedule_dashboard_refresh()
+                self._attr_native_value = float(last_state.state)
+                self.entity_description.setter_fn(self._coordinator, self._attr_native_value)
             except (ValueError, TypeError):
                 pass
 
@@ -230,5 +237,6 @@ class GlucoFarmerNumberEntity(NumberEntity, RestoreEntity):
         self.entity_description.setter_fn(self._coordinator, value)
         self.async_write_ha_state()
         if self.entity_description.entity_category == EntityCategory.CONFIG:
+            await self._coordinator.async_save_thresholds()
             await self._coordinator.async_request_refresh()
             await async_update_dashboard(self._coordinator.hass)
