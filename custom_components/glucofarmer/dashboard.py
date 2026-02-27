@@ -91,6 +91,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
             "label": {
                 "text": f"Kritisch ({crit})",
                 "position": "left",
+                "textAnchor": "start",
                 "offsetX": 5,
                 "offsetY": 22,
                 "style": {"color": _COLOR_CRITICAL, "background": "transparent"},
@@ -104,6 +105,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
             "label": {
                 "text": f"Sehr niedrig ({very_low})",
                 "position": "left",
+                "textAnchor": "start",
                 "offsetX": 5,
                 "offsetY": 6,
                 "style": {"color": _COLOR_VERY_LOW, "background": "transparent"},
@@ -117,6 +119,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
             "label": {
                 "text": f"Niedrig ({low})",
                 "position": "left",
+                "textAnchor": "start",
                 "offsetX": 5,
                 "offsetY": 6,
                 "style": {"color": _COLOR_LOW, "background": "transparent"},
@@ -130,6 +133,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
             "label": {
                 "text": "Normal",
                 "position": "left",
+                "textAnchor": "start",
                 "offsetX": 5,
                 "offsetY": 6,
                 "style": {"color": _COLOR_NORMAL, "background": "transparent"},
@@ -143,6 +147,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
             "label": {
                 "text": f"Hoch ({high})",
                 "position": "left",
+                "textAnchor": "start",
                 "offsetX": 5,
                 "offsetY": 6,
                 "style": {"color": _COLOR_HIGH, "background": "transparent"},
@@ -156,6 +161,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
             "label": {
                 "text": f"Sehr hoch ({very_high})",
                 "position": "left",
+                "textAnchor": "start",
                 "offsetX": 5,
                 "offsetY": 6,
                 "style": {"color": _COLOR_VERY_HIGH, "background": "transparent"},
@@ -175,23 +181,23 @@ def _zone_annotations_lines(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {"y": crit, "borderColor": _COLOR_CRITICAL,
          "label": {"text": f"Kritisch ({crit})", "position": "left",
-                   "offsetX": 5,
+                   "textAnchor": "start", "offsetX": 5,
                    "style": {"background": "transparent", "color": _COLOR_CRITICAL}}},
         {"y": very_low, "borderColor": _COLOR_VERY_LOW,
          "label": {"text": f"Sehr niedrig ({very_low})", "position": "left",
-                   "offsetX": 5,
+                   "textAnchor": "start", "offsetX": 5,
                    "style": {"background": "transparent", "color": _COLOR_VERY_LOW}}},
         {"y": low, "borderColor": _COLOR_LOW,
          "label": {"text": f"Niedrig ({low})", "position": "left",
-                   "offsetX": 5,
+                   "textAnchor": "start", "offsetX": 5,
                    "style": {"background": "transparent", "color": _COLOR_LOW}}},
         {"y": high, "borderColor": _COLOR_HIGH,
          "label": {"text": f"Hoch ({high})", "position": "left",
-                   "offsetX": 5,
+                   "textAnchor": "start", "offsetX": 5,
                    "style": {"background": "transparent", "color": _COLOR_HIGH}}},
         {"y": very_high, "borderColor": _COLOR_VERY_HIGH,
          "label": {"text": f"Sehr hoch ({very_high})", "position": "left",
-                   "offsetX": 5,
+                   "textAnchor": "start", "offsetX": 5,
                    "style": {"background": "transparent", "color": _COLOR_VERY_HIGH}}},
     ]
 

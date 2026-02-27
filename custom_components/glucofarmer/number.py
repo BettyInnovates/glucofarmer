@@ -10,6 +10,7 @@ from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     CONF_SUBJECT_NAME,
@@ -22,6 +23,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
+from .dashboard import async_update_dashboard
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -182,7 +184,7 @@ async def async_setup_entry(
     )
 
 
-class GlucoFarmerNumberEntity(NumberEntity):
+class GlucoFarmerNumberEntity(NumberEntity, RestoreEntity):
     """GlucoFarmer number entity for configurable thresholds."""
 
     entity_description: GlucoFarmerNumberEntityDescription
@@ -208,6 +210,18 @@ class GlucoFarmerNumberEntity(NumberEntity):
             model="Subject CGM Monitor",
         )
 
+    async def async_added_to_hass(self) -> None:
+        """Restore last known value after HA restart."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state not in ("unknown", "unavailable"):
+            try:
+                value = float(last_state.state)
+                self._attr_native_value = value
+                self.entity_description.setter_fn(self._coordinator, value)
+            except (ValueError, TypeError):
+                pass
+
     async def async_set_native_value(self, value: float) -> None:
         """Set new threshold value."""
         self._attr_native_value = value
@@ -215,3 +229,4 @@ class GlucoFarmerNumberEntity(NumberEntity):
         self.async_write_ha_state()
         if self.entity_description.entity_category == EntityCategory.CONFIG:
             await self._coordinator.async_request_refresh()
+            await async_update_dashboard(self._coordinator.hass)
