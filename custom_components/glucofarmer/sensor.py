@@ -27,6 +27,7 @@ from .const import (
     STATUS_NO_DATA,
     STATUS_NORMAL,
     STATUS_VERY_HIGH,
+    STATUS_VERY_LOW,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator, GlucoFarmerData
 
@@ -69,6 +70,7 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENUM,
         options=[
             STATUS_NORMAL,
+            STATUS_VERY_LOW,
             STATUS_LOW,
             STATUS_HIGH,
             STATUS_VERY_HIGH,
@@ -84,13 +86,20 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.reading_age_minutes,
     ),
-    # 5-zone time percentages
+    # 6-zone time percentages
     GlucoFarmerSensorEntityDescription(
         key="time_critical_low_pct",
         translation_key="time_critical_low_pct",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.time_critical_low_pct,
+    ),
+    GlucoFarmerSensorEntityDescription(
+        key="time_very_low_pct",
+        translation_key="time_very_low_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data.time_very_low_pct,
     ),
     GlucoFarmerSensorEntityDescription(
         key="time_low_pct",
@@ -125,11 +134,14 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         translation_key="data_completeness_today",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.data_completeness_pct,
+        value_fn=lambda data: (
+            round(data.covered_minutes_today / data.total_minutes_today * 100, 1)
+            if data.total_minutes_today > 0 else 0.0
+        ),
         attrs_fn=lambda data: {
-            "actual": data.readings_today_actual,
-            "expected": data.readings_today_expected,
-            "missed": max(0, data.readings_today_expected - data.readings_today_actual),
+            "covered_minutes": round(data.covered_minutes_today),
+            "total_minutes": round(data.total_minutes_today),
+            "missed_minutes": round(max(0.0, data.total_minutes_today - data.covered_minutes_today)),
         },
     ),
     GlucoFarmerSensorEntityDescription(
@@ -137,11 +149,14 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         translation_key="data_completeness_range",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.data_completeness_range_pct,
+        value_fn=lambda data: (
+            round(data.covered_minutes_range / data.total_minutes_range * 100, 1)
+            if data.total_minutes_range > 0 else 0.0
+        ),
         attrs_fn=lambda data: {
-            "actual": data.readings_range_actual,
-            "expected": data.readings_range_expected,
-            "missed": max(0, data.readings_range_expected - data.readings_range_actual),
+            "covered_minutes": round(data.covered_minutes_range),
+            "total_minutes": round(data.total_minutes_range),
+            "missed_minutes": round(max(0.0, data.total_minutes_range - data.covered_minutes_range)),
         },
     ),
     GlucoFarmerSensorEntityDescription(

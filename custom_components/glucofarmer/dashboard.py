@@ -31,6 +31,31 @@ _SUBJECT_COLORS = [
     "#F44336",
 ]
 
+# Zone colors (symmetric around green)
+_COLOR_CRITICAL = "#EF5350"   # rot
+_COLOR_VERY_LOW = "#FF9800"   # orange
+_COLOR_LOW = "#FFC107"        # gelb
+_COLOR_NORMAL = "#4CAF50"     # gruen
+_COLOR_HIGH = "#FFC107"       # gelb
+_COLOR_VERY_HIGH = "#FF9800"  # orange
+
+# HA gauge uses CSS color names or hex
+_GAUGE_CRITICAL = "red"
+_GAUGE_VERY_LOW = "orange"
+_GAUGE_LOW = "yellow"
+_GAUGE_NORMAL = "green"
+_GAUGE_HIGH = "yellow"
+_GAUGE_VERY_HIGH = "orange"
+
+# Default thresholds (used when hass.data not yet populated)
+_DEFAULT_THRESHOLDS = {
+    "critical_low": 55,
+    "very_low": 100,
+    "low": 200,
+    "high": 300,
+    "very_high": 400,
+}
+
 
 def _get_subject_entities(
     hass: HomeAssistant, entry_id: str
@@ -48,13 +73,144 @@ def _get_subject_entities(
     return result
 
 
+def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build 6 filled yaxis zone annotations from thresholds."""
+    crit = thresholds.get("critical_low", 55)
+    very_low = thresholds.get("very_low", 100)
+    low = thresholds.get("low", 200)
+    high = thresholds.get("high", 300)
+    very_high = thresholds.get("very_high", 400)
+    chart_max = very_high + 50
+
+    return [
+        {
+            "y": 0,
+            "y2": crit,
+            "fillColor": _COLOR_CRITICAL,
+            "opacity": 0.15,
+            "label": {
+                "text": f"Kritisch ({crit})",
+                "position": "left",
+                "offsetX": 5,
+                "offsetY": 22,
+                "style": {"color": _COLOR_CRITICAL, "background": "transparent"},
+            },
+        },
+        {
+            "y": crit,
+            "y2": very_low,
+            "fillColor": _COLOR_VERY_LOW,
+            "opacity": 0.12,
+            "label": {
+                "text": f"Sehr niedrig ({very_low})",
+                "position": "left",
+                "offsetX": 5,
+                "offsetY": 6,
+                "style": {"color": _COLOR_VERY_LOW, "background": "transparent"},
+            },
+        },
+        {
+            "y": very_low,
+            "y2": low,
+            "fillColor": _COLOR_LOW,
+            "opacity": 0.10,
+            "label": {
+                "text": f"Niedrig ({low})",
+                "position": "left",
+                "offsetX": 5,
+                "offsetY": 6,
+                "style": {"color": _COLOR_LOW, "background": "transparent"},
+            },
+        },
+        {
+            "y": low,
+            "y2": high,
+            "fillColor": _COLOR_NORMAL,
+            "opacity": 0.08,
+            "label": {
+                "text": "Normal",
+                "position": "left",
+                "offsetX": 5,
+                "offsetY": 6,
+                "style": {"color": _COLOR_NORMAL, "background": "transparent"},
+            },
+        },
+        {
+            "y": high,
+            "y2": very_high,
+            "fillColor": _COLOR_HIGH,
+            "opacity": 0.10,
+            "label": {
+                "text": f"Hoch ({high})",
+                "position": "left",
+                "offsetX": 5,
+                "offsetY": 6,
+                "style": {"color": _COLOR_HIGH, "background": "transparent"},
+            },
+        },
+        {
+            "y": very_high,
+            "y2": chart_max,
+            "fillColor": _COLOR_VERY_HIGH,
+            "opacity": 0.12,
+            "label": {
+                "text": f"Sehr hoch ({very_high})",
+                "position": "left",
+                "offsetX": 5,
+                "offsetY": 6,
+                "style": {"color": _COLOR_VERY_HIGH, "background": "transparent"},
+            },
+        },
+    ]
+
+
+def _zone_annotations_lines(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build 5 horizontal line annotations (zone boundaries) from thresholds."""
+    crit = thresholds.get("critical_low", 55)
+    very_low = thresholds.get("very_low", 100)
+    low = thresholds.get("low", 200)
+    high = thresholds.get("high", 300)
+    very_high = thresholds.get("very_high", 400)
+
+    return [
+        {"y": crit, "borderColor": _COLOR_CRITICAL,
+         "label": {"text": f"Kritisch ({crit})", "position": "left",
+                   "offsetX": 5,
+                   "style": {"background": "transparent", "color": _COLOR_CRITICAL}}},
+        {"y": very_low, "borderColor": _COLOR_VERY_LOW,
+         "label": {"text": f"Sehr niedrig ({very_low})", "position": "left",
+                   "offsetX": 5,
+                   "style": {"background": "transparent", "color": _COLOR_VERY_LOW}}},
+        {"y": low, "borderColor": _COLOR_LOW,
+         "label": {"text": f"Niedrig ({low})", "position": "left",
+                   "offsetX": 5,
+                   "style": {"background": "transparent", "color": _COLOR_LOW}}},
+        {"y": high, "borderColor": _COLOR_HIGH,
+         "label": {"text": f"Hoch ({high})", "position": "left",
+                   "offsetX": 5,
+                   "style": {"background": "transparent", "color": _COLOR_HIGH}}},
+        {"y": very_high, "borderColor": _COLOR_VERY_HIGH,
+         "label": {"text": f"Sehr hoch ({very_high})", "position": "left",
+                   "offsetX": 5,
+                   "style": {"background": "transparent", "color": _COLOR_VERY_HIGH}}},
+    ]
+
+
 def _build_overview_view(
     subjects: list[dict[str, Any]],
+    thresholds: dict[str, Any],
 ) -> dict[str, Any]:
     """Build the overview view with gauges and apexcharts."""
+    crit = thresholds.get("critical_low", 55)
+    very_low = thresholds.get("very_low", 100)
+    low = thresholds.get("low", 200)
+    high = thresholds.get("high", 300)
+    very_high = thresholds.get("very_high", 400)
+    yaxis_max = very_high + 50
+
     cards: list[dict[str, Any]] = []
 
-    # ApexCharts: all subjects in one chart with colored 5-zone threshold areas
+    # ApexCharts: all subjects in one chart with 6-zone threshold areas
     series = []
     for i, subject in enumerate(subjects):
         entity_id = subject["entities"].get("glucose_value")
@@ -80,84 +236,18 @@ def _build_overview_view(
                 "legend": {"show": True},
                 "yaxis": {
                     "min": 0,
-                    "max": 350,
+                    "max": yaxis_max,
                     "opposite": True,
                     "tickAmount": 7,
                 },
                 "annotations": {
-                    "yaxis": [
-                        {
-                            "y": 0,
-                            "y2": 55,
-                            "fillColor": "#EF5350",
-                            "opacity": 0.12,
-                            "label": {
-                                "text": "Kritisch (55)",
-                                "position": "left",
-                                "offsetX": 75,
-                                "offsetY": 22,
-                                "style": {"color": "#EF5350", "background": "transparent"},
-                            },
-                        },
-                        {
-                            "y": 55,
-                            "y2": 70,
-                            "fillColor": "#FF9800",
-                            "opacity": 0.12,
-                            "label": {
-                                "text": "Niedrig",
-                                "position": "left",
-                                "offsetX": 75,
-                                "offsetY": 6,
-                                "style": {"color": "#FF9800", "background": "transparent"},
-                            },
-                        },
-                        {
-                            "y": 70,
-                            "y2": 180,
-                            "fillColor": "#4CAF50",
-                            "opacity": 0.08,
-                            "label": {
-                                "text": "Normal",
-                                "position": "left",
-                                "offsetX": 75,
-                                "offsetY": 46,
-                                "style": {"color": "#4CAF50", "background": "transparent"},
-                            },
-                        },
-                        {
-                            "y": 180,
-                            "y2": 250,
-                            "fillColor": "#FF9800",
-                            "opacity": 0.12,
-                            "label": {
-                                "text": "Hoch",
-                                "position": "left",
-                                "offsetX": 75,
-                                "offsetY": 29,
-                                "style": {"color": "#FF9800", "background": "transparent"},
-                            },
-                        },
-                        {
-                            "y": 250,
-                            "y2": 400,
-                            "fillColor": "#EF5350",
-                            "opacity": 0.12,
-                            "label": {
-                                "text": "Sehr hoch",
-                                "position": "left",
-                                "offsetX": 75,
-                                "offsetY": 41,
-                                "style": {"color": "#EF5350", "background": "transparent"},
-                            },
-                        },
-                    ],
+                    "yaxis": _zone_annotations_fill(thresholds),
                 },
             },
             "series": series,
         })
 
-    # Per subject: conditional gauge + info
+    # Per subject: gauge + info
     for subject in subjects:
         ents = subject["entities"]
         subject_cards: list[dict[str, Any]] = [
@@ -166,7 +256,6 @@ def _build_overview_view(
 
         row_cards: list[dict[str, Any]] = []
         glucose_entity = ents.get("glucose_value")
-
         link_status_entity = ents.get("link_status")
         reading_age_entity = ents.get("reading_age")
 
@@ -184,18 +273,19 @@ def _build_overview_view(
                     "name": "Glucose",
                     "unit": "mg/dL",
                     "min": 20,
-                    "max": 350,
+                    "max": yaxis_max,
                     "needle": True,
                     "segments": [
-                        {"from": 0, "color": "red", "label": "Kritisch"},
-                        {"from": 55, "color": "orange", "label": "Niedrig"},
-                        {"from": 70, "color": "green", "label": "Normal"},
-                        {"from": 180, "color": "orange", "label": "Hoch"},
-                        {"from": 250, "color": "red", "label": "Sehr hoch"},
+                        {"from": 0, "color": _GAUGE_CRITICAL, "label": "Kritisch"},
+                        {"from": crit, "color": _GAUGE_VERY_LOW, "label": "Sehr niedrig"},
+                        {"from": very_low, "color": _GAUGE_LOW, "label": "Niedrig"},
+                        {"from": low, "color": _GAUGE_NORMAL, "label": "Normal"},
+                        {"from": high, "color": _GAUGE_HIGH, "label": "Hoch"},
+                        {"from": very_high, "color": _GAUGE_VERY_HIGH, "label": "Sehr hoch"},
                     ],
                 },
             })
-            # Warning card when signal is lost (unknown/unavailable → link_status = lost)
+            # Warning card when signal is lost
             if link_status_entity:
                 row_cards.append({
                     "type": "conditional",
@@ -204,14 +294,10 @@ def _build_overview_view(
                     ],
                     "card": {
                         "type": "markdown",
-                        "content": (
-                            f"## ⚠\n\n**Kein Signal**\n"
-                            f"{{{{ state_attr('{link_status_entity}', 'outage_minutes') | int(0) }}}} min ohne Daten"
-                        ),
+                        "content": "## ⚠\n\n**Kein Messwert**\nSensor nicht verfuegbar",
                     },
                 })
             else:
-                # Fallback if link_status entity not yet available
                 for no_data_state in ["unavailable", "unknown"]:
                     row_cards.append({
                         "type": "conditional",
@@ -224,7 +310,7 @@ def _build_overview_view(
                         },
                     })
 
-        # Info: Glucose, Trend, Coverage, missed -- Since/Lost shown separately below
+        # Right column: 4 entities (Glucose, Trend, Since, Coverage)
         status_entities = []
         for key, label in [
             ("glucose_value", "Glucose"),
@@ -233,40 +319,15 @@ def _build_overview_view(
             if key in ents:
                 status_entities.append({"entity": ents[key], "name": label})
 
+        if reading_age_entity:
+            status_entities.append({"entity": reading_age_entity, "name": "Since"})
+
         comp_today_entity = ents.get("data_completeness_today")
         if comp_today_entity:
             status_entities.append({"entity": comp_today_entity, "name": "Coverage"})
-            status_entities.append({
-                "type": "attribute",
-                "entity": comp_today_entity,
-                "attribute": "missed",
-                "name": "missed",
-                "suffix": " today",
-            })
 
-        # Build right column: entities card + Since/Lost display stacked vertically
-        info_cards: list[dict[str, Any]] = []
         if status_entities:
-            info_cards.append({"type": "entities", "entities": status_entities})
-
-        if reading_age_entity and link_status_entity:
-            info_cards.append({
-                "type": "markdown",
-                "content": (
-                    f"{{% if is_state('{link_status_entity}', 'ok') %}}"
-                    f"⏱ Since  {{{{ states('{reading_age_entity}') }}}} min"
-                    f"{{% else %}}"
-                    f"⚠ Lost   {{{{ state_attr('{link_status_entity}', 'outage_minutes') | int(0) }}}} min"
-                    f"{{% endif %}}"
-                ),
-            })
-
-        if info_cards:
-            right_column = (
-                {"type": "vertical-stack", "cards": info_cards}
-                if len(info_cards) > 1
-                else info_cards[0]
-            )
+            right_column = {"type": "entities", "entities": status_entities}
             row_cards.append(right_column)
 
         if row_cards:
@@ -311,7 +372,7 @@ def _build_input_view(
                     f"{{% set trend = states('{trend_entity}') %}}"
                     "{% if status in ['critical_low', 'very_high'] %}"
                     "**! Glucose: {{ val }} mg/dL !**"
-                    "{% elif status in ['low', 'high'] %}"
+                    "{% elif status in ['very_low', 'low', 'high'] %}"
                     "**Glucose: {{ val }} mg/dL**"
                     "{% else %}"
                     "Glucose: {{ val }} mg/dL"
@@ -453,8 +514,12 @@ def _build_input_view(
 
 def _build_stats_view(
     subjects: list[dict[str, Any]],
+    thresholds: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build the statistics view with 5-zone distribution and charts."""
+    """Build the statistics view with 6-zone distribution and charts."""
+    very_high = thresholds.get("very_high", 400)
+    yaxis_max = very_high + 50
+
     cards: list[dict[str, Any]] = []
 
     # Chart timerange selector (use first subject's entity)
@@ -475,16 +540,15 @@ def _build_stats_view(
             {"type": "markdown", "content": f"## {subject['name']}"},
         ]
 
-        # 5-zone distribution as donut chart.
-        # chart_type: donut uses current entity state directly (no graph_span/group_by
-        # needed). Simpler and more robust than stacked bar.
+        # 6-zone distribution as donut chart
         zone_series = []
         for key, name, color in [
-            ("time_critical_low_pct", "Kritisch niedrig", "#B71C1C"),
-            ("time_low_pct", "Niedrig", "#FF9800"),
-            ("time_in_range_pct", "Zielbereich", "#4CAF50"),
-            ("time_high_pct", "Hoch", "#FB8C00"),
-            ("time_very_high_pct", "Sehr hoch", "#EF5350"),
+            ("time_critical_low_pct", "Kritisch niedrig", _COLOR_CRITICAL),
+            ("time_very_low_pct", "Sehr niedrig", _COLOR_VERY_LOW),
+            ("time_low_pct", "Niedrig", _COLOR_LOW),
+            ("time_in_range_pct", "Zielbereich", _COLOR_NORMAL),
+            ("time_high_pct", "Hoch", _COLOR_HIGH),
+            ("time_very_high_pct", "Sehr hoch", _COLOR_VERY_HIGH),
         ]:
             if key in ents:
                 zone_series.append({
@@ -520,12 +584,12 @@ def _build_stats_view(
 
             comp_range_entity = ents.get("data_completeness_range")
             if comp_range_entity:
-                detail_entities.append({"entity": comp_range_entity, "name": "Vollstaendigkeit"})
+                detail_entities.append({"entity": comp_range_entity, "name": "Signalabdeckung"})
                 detail_entities.append({
                     "type": "attribute",
                     "entity": comp_range_entity,
-                    "attribute": "missed",
-                    "name": "Verpasst",
+                    "attribute": "missed_minutes",
+                    "name": "Verpasst (min)",
                 })
 
             if detail_entities:
@@ -535,7 +599,7 @@ def _build_stats_view(
                     "entities": detail_entities,
                 })
 
-        # Glucose chart with zoom/pan and 5-zone annotations
+        # Glucose chart with zoom/pan and 6-zone line annotations
         glucose_entity = ents.get("glucose_value")
         if glucose_entity:
             subject_cards.append({
@@ -563,25 +627,12 @@ def _build_stats_view(
                     },
                     "yaxis": {
                         "min": 0,
-                        "max": 350,
+                        "max": yaxis_max,
                         "opposite": True,
                         "tickAmount": 7,
                     },
                     "annotations": {
-                        "yaxis": [
-                            {"y": 55, "borderColor": "#FF0000",
-                             "label": {"text": "Kritisch (55)", "position": "left",
-                                       "offsetX": 75, "style": {"background": "transparent", "color": "#FF0000"}}},
-                            {"y": 70, "borderColor": "#FFA500",
-                             "label": {"text": "Niedrig", "position": "left",
-                                       "offsetX": 75, "style": {"background": "transparent", "color": "#FFA500"}}},
-                            {"y": 180, "borderColor": "#FFA500",
-                             "label": {"text": "Hoch", "position": "left",
-                                       "offsetX": 75, "style": {"background": "transparent", "color": "#FFA500"}}},
-                            {"y": 250, "borderColor": "#FF0000",
-                             "label": {"text": "Sehr hoch", "position": "left",
-                                       "offsetX": 75, "style": {"background": "transparent", "color": "#FF0000"}}},
-                        ],
+                        "yaxis": _zone_annotations_lines(thresholds),
                     },
                 },
                 "series": [{
@@ -609,14 +660,15 @@ def _build_settings_view(
     """Build the settings view with thresholds and catalog management."""
     cards: list[dict[str, Any]] = []
 
-    for subject in subjects:
-        ents = subject["entities"]
-
+    # Thresholds only for first subject (global thresholds)
+    if subjects:
+        ents = subjects[0]["entities"]
         threshold_entities = []
         for key, label in [
             ("critical_low_threshold", "Kritisch niedrig (mg/dL)"),
-            ("low_threshold", "Untere Grenze (mg/dL)"),
-            ("high_threshold", "Obere Grenze (mg/dL)"),
+            ("very_low_threshold", "Sehr niedrig (mg/dL)"),
+            ("low_threshold", "Niedrig-Grenze (mg/dL)"),
+            ("high_threshold", "Hoch-Grenze (mg/dL)"),
             ("very_high_threshold", "Sehr hoch (mg/dL)"),
             ("data_timeout", "Daten-Timeout (Minuten)"),
         ]:
@@ -626,7 +678,7 @@ def _build_settings_view(
         if threshold_entities:
             cards.append({
                 "type": "entities",
-                "title": f"{subject['name']} - Schwellwerte",
+                "title": "Globale Schwellwerte",
                 "show_header_toggle": False,
                 "entities": threshold_entities,
             })
@@ -663,6 +715,10 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
     if not entries:
         return
 
+    # Read current thresholds from shared hass.data (written by coordinator)
+    domain_data = hass.data.get(DOMAIN, {})
+    thresholds = domain_data.get("thresholds", _DEFAULT_THRESHOLDS)
+
     # Collect subject data from entity registry
     subjects: list[dict[str, Any]] = []
     for entry in entries:
@@ -682,9 +738,9 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
     # Build dashboard config
     config = {
         "views": [
-            _build_overview_view(subjects),
+            _build_overview_view(subjects, thresholds),
             _build_input_view(subjects),
-            _build_stats_view(subjects),
+            _build_stats_view(subjects, thresholds),
             _build_settings_view(subjects),
         ],
     }

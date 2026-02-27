@@ -18,6 +18,7 @@ from .const import (
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_LOW_THRESHOLD,
     DEFAULT_VERY_HIGH_THRESHOLD,
+    DEFAULT_VERY_LOW_THRESHOLD,
     DOMAIN,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
@@ -31,20 +32,29 @@ class GlucoFarmerNumberEntityDescription(NumberEntityDescription):
     setter_fn: Callable[[GlucoFarmerCoordinator, float], None]
 
 
+def _set_critical_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
+    coordinator.critical_low_threshold = value
+    coordinator._write_thresholds_to_shared()
+
+
+def _set_very_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
+    coordinator.very_low_threshold = value
+    coordinator._write_thresholds_to_shared()
+
+
 def _set_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.low_threshold = value
+    coordinator._write_thresholds_to_shared()
 
 
 def _set_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.high_threshold = value
-
-
-def _set_critical_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
-    coordinator.critical_low_threshold = value
+    coordinator._write_thresholds_to_shared()
 
 
 def _set_very_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.very_high_threshold = value
+    coordinator._write_thresholds_to_shared()
 
 
 def _set_data_timeout(coordinator: GlucoFarmerCoordinator, value: float) -> None:
@@ -60,6 +70,30 @@ def _set_insulin_amount(coordinator: GlucoFarmerCoordinator, value: float) -> No
 
 
 NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
+    GlucoFarmerNumberEntityDescription(
+        key="critical_low_threshold",
+        translation_key="critical_low_threshold",
+        native_unit_of_measurement="mg/dL",
+        native_min_value=20,
+        native_max_value=500,
+        native_step=1,
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+        default_value=DEFAULT_CRITICAL_LOW_THRESHOLD,
+        setter_fn=_set_critical_low,
+    ),
+    GlucoFarmerNumberEntityDescription(
+        key="very_low_threshold",
+        translation_key="very_low_threshold",
+        native_unit_of_measurement="mg/dL",
+        native_min_value=20,
+        native_max_value=500,
+        native_step=1,
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+        default_value=DEFAULT_VERY_LOW_THRESHOLD,
+        setter_fn=_set_very_low,
+    ),
     GlucoFarmerNumberEntityDescription(
         key="low_threshold",
         translation_key="low_threshold",
@@ -83,18 +117,6 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         default_value=DEFAULT_HIGH_THRESHOLD,
         setter_fn=_set_high,
-    ),
-    GlucoFarmerNumberEntityDescription(
-        key="critical_low_threshold",
-        translation_key="critical_low_threshold",
-        native_unit_of_measurement="mg/dL",
-        native_min_value=20,
-        native_max_value=500,
-        native_step=1,
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-        default_value=DEFAULT_CRITICAL_LOW_THRESHOLD,
-        setter_fn=_set_critical_low,
     ),
     GlucoFarmerNumberEntityDescription(
         key="very_high_threshold",

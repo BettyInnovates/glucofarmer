@@ -135,6 +135,7 @@
         "name": "Glukose-Status",
         "state": {
           "normal": "Normal",
+          "very_low": "Sehr niedrig",
           "low": "Niedrig",
           "high": "Hoch",
           "very_high": "Sehr hoch",
@@ -147,6 +148,9 @@
       },
       "time_critical_low_pct": {
         "name": "Zeit kritisch niedrig"
+      },
+      "time_very_low_pct": {
+        "name": "Zeit sehr niedrig"
       },
       "time_low_pct": {
         "name": "Zeit niedrig"
@@ -161,10 +165,17 @@
         "name": "Zeit sehr hoch"
       },
       "data_completeness_today": {
-        "name": "Datenvollstaendigkeit heute"
+        "name": "Signalabdeckung heute"
       },
       "data_completeness_range": {
-        "name": "Datenvollstaendigkeit (Zeitraum)"
+        "name": "Signalabdeckung (Zeitraum)"
+      },
+      "link_status": {
+        "name": "Verbindungsstatus",
+        "state": {
+          "ok": "Verbunden",
+          "lost": "Signalverlust"
+        }
       },
       "daily_insulin_total": {
         "name": "Insulin gesamt (heute)"
@@ -177,17 +188,20 @@
       }
     },
     "number": {
+      "critical_low_threshold": {
+        "name": "Schwellwert Kritisch niedrig"
+      },
+      "very_low_threshold": {
+        "name": "Schwellwert Sehr niedrig"
+      },
       "low_threshold": {
-        "name": "Niedrig-Schwellwert"
+        "name": "Schwellwert Niedrig"
       },
       "high_threshold": {
-        "name": "Hoch-Schwellwert"
-      },
-      "critical_low_threshold": {
-        "name": "Kritisch-niedrig-Schwellwert"
+        "name": "Schwellwert Hoch"
       },
       "very_high_threshold": {
-        "name": "Sehr-hoch-Schwellwert"
+        "name": "Schwellwert Sehr hoch"
       },
       "data_timeout": {
         "name": "Daten-Timeout"

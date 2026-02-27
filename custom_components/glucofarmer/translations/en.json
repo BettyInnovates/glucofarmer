@@ -135,6 +135,7 @@
         "name": "Glucose status",
         "state": {
           "normal": "Normal",
+          "very_low": "Very low",
           "low": "Low",
           "high": "High",
           "very_high": "Very high",
@@ -147,6 +148,9 @@
       },
       "time_critical_low_pct": {
         "name": "Time critical low"
+      },
+      "time_very_low_pct": {
+        "name": "Time very low"
       },
       "time_low_pct": {
         "name": "Time low"
@@ -161,10 +165,17 @@
         "name": "Time very high"
       },
       "data_completeness_today": {
-        "name": "Data completeness today"
+        "name": "Signal coverage today"
       },
       "data_completeness_range": {
-        "name": "Data completeness (range)"
+        "name": "Signal coverage (range)"
+      },
+      "link_status": {
+        "name": "Link status",
+        "state": {
+          "ok": "Connected",
+          "lost": "Signal lost"
+        }
       },
       "daily_insulin_total": {
         "name": "Daily insulin total"
@@ -177,17 +188,20 @@
       }
     },
     "number": {
+      "critical_low_threshold": {
+        "name": "Critical low threshold"
+      },
+      "very_low_threshold": {
+        "name": "Very low threshold"
+      },
       "low_threshold": {
-        "name": "Low glucose threshold"
+        "name": "Low threshold"
       },
       "high_threshold": {
-        "name": "High glucose threshold"
-      },
-      "critical_low_threshold": {
-        "name": "Critical low glucose threshold"
+        "name": "High threshold"
       },
       "very_high_threshold": {
-        "name": "Very high glucose threshold"
+        "name": "Very high threshold"
       },
       "data_timeout": {
         "name": "Data timeout"
