@@ -36,27 +36,27 @@ class GlucoFarmerNumberEntityDescription(NumberEntityDescription):
 
 def _set_critical_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.critical_low_threshold = value
-    coordinator._write_thresholds_to_shared()
+    coordinator._write_one_threshold_to_shared("critical_low", value)
 
 
 def _set_very_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.very_low_threshold = value
-    coordinator._write_thresholds_to_shared()
+    coordinator._write_one_threshold_to_shared("very_low", value)
 
 
 def _set_low(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.low_threshold = value
-    coordinator._write_thresholds_to_shared()
+    coordinator._write_one_threshold_to_shared("low", value)
 
 
 def _set_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.high_threshold = value
-    coordinator._write_thresholds_to_shared()
+    coordinator._write_one_threshold_to_shared("high", value)
 
 
 def _set_very_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.very_high_threshold = value
-    coordinator._write_thresholds_to_shared()
+    coordinator._write_one_threshold_to_shared("very_high", value)
 
 
 def _set_data_timeout(coordinator: GlucoFarmerCoordinator, value: float) -> None:

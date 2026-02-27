@@ -51,6 +51,15 @@ _GAP_CAP_MINUTES = 5.0
 _LOW_STATES = {"low", "niedrig"}
 _HIGH_STATES = {"high", "hoch"}
 
+# Maps threshold dict key → coordinator attribute name (used for targeted updates)
+_THRESHOLD_KEY_TO_ATTR: dict[str, str] = {
+    "critical_low": "critical_low_threshold",
+    "very_low": "very_low_threshold",
+    "low": "low_threshold",
+    "high": "high_threshold",
+    "very_high": "very_high_threshold",
+}
+
 type GlucoFarmerConfigEntry = ConfigEntry[GlucoFarmerCoordinator]
 
 
@@ -313,6 +322,25 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             other.low_threshold = self.low_threshold
             other.high_threshold = self.high_threshold
             other.very_high_threshold = self.very_high_threshold
+
+    def _write_one_threshold_to_shared(self, key: str, value: float) -> None:
+        """Write a single threshold key to hass.data and propagate to other coordinators.
+
+        Unlike _write_thresholds_to_shared() (which writes all 5 at once from coordinator
+        attributes), this only touches the one key that actually changed. This prevents
+        overwriting correctly-restored values with defaults when coordinator attributes
+        for other thresholds haven't been set yet.
+        """
+        if DOMAIN not in self.hass.data:
+            self.hass.data[DOMAIN] = {}
+        self.hass.data[DOMAIN].setdefault("thresholds", {})[key] = value
+        attr = _THRESHOLD_KEY_TO_ATTR.get(key)
+        if attr:
+            for entry in self.hass.config_entries.async_entries(DOMAIN):
+                other = getattr(entry, "runtime_data", None)
+                if other is None or other is self:
+                    continue
+                setattr(other, attr, value)
 
     def schedule_dashboard_refresh(self) -> None:
         """Schedule a debounced dashboard refresh.
