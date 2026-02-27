@@ -167,8 +167,11 @@ def _build_overview_view(
         row_cards: list[dict[str, Any]] = []
         glucose_entity = ents.get("glucose_value")
 
+        link_status_entity = ents.get("link_status")
+        reading_age_entity = ents.get("reading_age")
+
         if glucose_entity:
-            # Gauge: only when sensor available
+            # Gauge: only when sensor has a valid (numeric) reading
             row_cards.append({
                 "type": "conditional",
                 "conditions": [
@@ -192,25 +195,40 @@ def _build_overview_view(
                     ],
                 },
             })
-            # Warning symbol when no data
-            for no_data_state in ["unavailable", "unknown"]:
+            # Warning card when signal is lost (unknown/unavailable → link_status = lost)
+            if link_status_entity:
                 row_cards.append({
                     "type": "conditional",
                     "conditions": [
-                        {"condition": "state", "entity": glucose_entity, "state": no_data_state},
+                        {"condition": "state", "entity": link_status_entity, "state": "lost"},
                     ],
                     "card": {
                         "type": "markdown",
-                        "content": "## ⚠\n\n**Kein Messwert**\nSensor nicht verfuegbar",
+                        "content": (
+                            f"## ⚠\n\n**Kein Signal**\n"
+                            f"{{{{ state_attr('{link_status_entity}', 'outage_minutes') | int(0) }}}} min ohne Daten"
+                        ),
                     },
                 })
+            else:
+                # Fallback if link_status entity not yet available
+                for no_data_state in ["unavailable", "unknown"]:
+                    row_cards.append({
+                        "type": "conditional",
+                        "conditions": [
+                            {"condition": "state", "entity": glucose_entity, "state": no_data_state},
+                        ],
+                        "card": {
+                            "type": "markdown",
+                            "content": "## ⚠\n\n**Kein Messwert**\nSensor nicht verfuegbar",
+                        },
+                    })
 
-        # Info: Glucose, Trend, Sync + today completeness (integrated)
+        # Info: Glucose, Trend, Coverage, missed -- Since/Lost shown separately below
         status_entities = []
         for key, label in [
             ("glucose_value", "Glucose"),
             ("glucose_trend", "Trend"),
-            ("reading_age", "Sync"),
         ]:
             if key in ents:
                 status_entities.append({"entity": ents[key], "name": label})
@@ -226,11 +244,30 @@ def _build_overview_view(
                 "suffix": " today",
             })
 
+        # Build right column: entities card + Since/Lost display stacked vertically
+        info_cards: list[dict[str, Any]] = []
         if status_entities:
-            row_cards.append({
-                "type": "entities",
-                "entities": status_entities,
+            info_cards.append({"type": "entities", "entities": status_entities})
+
+        if reading_age_entity and link_status_entity:
+            info_cards.append({
+                "type": "markdown",
+                "content": (
+                    f"{{% if is_state('{link_status_entity}', 'ok') %}}"
+                    f"⏱ Since  {{{{ states('{reading_age_entity}') }}}} min"
+                    f"{{% else %}}"
+                    f"⚠ Lost   {{{{ state_attr('{link_status_entity}', 'outage_minutes') | int(0) }}}} min"
+                    f"{{% endif %}}"
+                ),
             })
+
+        if info_cards:
+            right_column = (
+                {"type": "vertical-stack", "cards": info_cards}
+                if len(info_cards) > 1
+                else info_cards[0]
+            )
+            row_cards.append(right_column)
 
         if row_cards:
             subject_cards.append({"type": "horizontal-stack", "cards": row_cards})

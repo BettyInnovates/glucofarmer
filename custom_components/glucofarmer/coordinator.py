@@ -74,6 +74,8 @@ class GlucoFarmerData:
     daily_insulin_total: float
     daily_bes_total: float
     last_reading_time: datetime | None
+    link_status: str               # "ok" | "lost"
+    link_outage_minutes: int | None  # None when ok, else minutes since signal loss
     today_events: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -117,6 +119,9 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         # Last time we had a valid glucose reading (used for age when sensor goes unavailable)
         self._last_valid_reading_time: datetime | None = None
 
+        # Timestamp when the current signal-loss event started (None = signal ok)
+        self._signal_lost_since: datetime | None = None
+
     async def _async_update_data(self) -> GlucoFarmerData:
         """Fetch data from Dexcom sensors and compute stats."""
         glucose_value = self._get_sensor_value(self.glucose_sensor_id)
@@ -155,6 +160,22 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             glucose_state is None
             or glucose_state.state in ("unknown", "unavailable")
         )
+
+        # Compute link status: "ok" when signal present, "lost" when unknown/unavailable.
+        # unknown = no data from Dexcom (BT/internet/range -- indistinguishable).
+        # unavailable = HA integration artifact (restart etc.) -- treated the same.
+        now_tz = datetime.now().astimezone()
+        if not sensor_unavailable:
+            self._signal_lost_since = None
+            link_status = "ok"
+            link_outage_minutes: int | None = None
+        else:
+            if self._signal_lost_since is None:
+                self._signal_lost_since = now_tz
+            link_outage_minutes = round(
+                (now_tz - self._signal_lost_since).total_seconds() / 60
+            )
+            link_status = "lost"
 
         # Determine glucose status
         glucose_status = self._compute_status(glucose_value, sensor_unavailable)
@@ -197,6 +218,8 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             daily_insulin_total=daily_insulin,
             daily_bes_total=daily_bes,
             last_reading_time=last_reading_time,
+            link_status=link_status,
+            link_outage_minutes=link_outage_minutes,
             today_events=today_events,
         )
 

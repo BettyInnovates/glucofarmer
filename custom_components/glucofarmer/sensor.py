@@ -145,6 +145,14 @@ SENSOR_DESCRIPTIONS: tuple[GlucoFarmerSensorEntityDescription, ...] = (
         },
     ),
     GlucoFarmerSensorEntityDescription(
+        key="link_status",
+        translation_key="link_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ok", "lost"],
+        value_fn=lambda data: data.link_status,
+        attrs_fn=lambda data: {"outage_minutes": data.link_outage_minutes},
+    ),
+    GlucoFarmerSensorEntityDescription(
         key="daily_insulin_total",
         translation_key="daily_insulin_total",
         native_unit_of_measurement="IU",
