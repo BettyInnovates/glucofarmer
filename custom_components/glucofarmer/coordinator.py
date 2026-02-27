@@ -353,18 +353,22 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         Must be called in async_setup_entry BEFORE async_config_entry_first_refresh()
         so zone stats use the correct thresholds from the very first update.
         """
-        self._threshold_store = Store(
-            self.hass, _THRESHOLD_STORAGE_VERSION, _THRESHOLD_STORAGE_KEY
-        )
-        data = await self._threshold_store.async_load() or {}
-        if data:
-            self.critical_low_threshold = data.get("critical_low", self.critical_low_threshold)
-            self.very_low_threshold = data.get("very_low", self.very_low_threshold)
-            self.low_threshold = data.get("low", self.low_threshold)
-            self.high_threshold = data.get("high", self.high_threshold)
-            self.very_high_threshold = data.get("very_high", self.very_high_threshold)
-            self.data_timeout = int(data.get("data_timeout", self.data_timeout))
-        self._write_thresholds_to_shared()
+        try:
+            self._threshold_store = Store(
+                self.hass, _THRESHOLD_STORAGE_VERSION, _THRESHOLD_STORAGE_KEY
+            )
+            data = await self._threshold_store.async_load() or {}
+            if data:
+                self.critical_low_threshold = data.get("critical_low", self.critical_low_threshold)
+                self.very_low_threshold = data.get("very_low", self.very_low_threshold)
+                self.low_threshold = data.get("low", self.low_threshold)
+                self.high_threshold = data.get("high", self.high_threshold)
+                self.very_high_threshold = data.get("very_high", self.very_high_threshold)
+                self.data_timeout = int(data.get("data_timeout", self.data_timeout))
+        except Exception:
+            _LOGGER.exception("Failed to load thresholds from storage, using defaults")
+        finally:
+            self._write_thresholds_to_shared()
 
     async def async_save_thresholds(self) -> None:
         """Persist current thresholds to storage."""
