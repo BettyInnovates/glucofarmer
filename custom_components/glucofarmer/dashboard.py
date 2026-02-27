@@ -73,6 +73,12 @@ def _get_subject_entities(
     return result
 
 
+def _yaxis_max(thresholds: dict[str, Any]) -> int:
+    """Return y-axis max rounded up to the next multiple of 50 above very_high."""
+    very_high = int(thresholds.get("very_high", 400))
+    return ((very_high // 50) + 1) * 50
+
+
 def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
     """Build 6 filled yaxis zone annotations from thresholds."""
     crit = thresholds.get("critical_low", 55)
@@ -80,7 +86,7 @@ def _zone_annotations_fill(thresholds: dict[str, Any]) -> list[dict[str, Any]]:
     low = thresholds.get("low", 200)
     high = thresholds.get("high", 300)
     very_high = thresholds.get("very_high", 400)
-    chart_max = very_high + 50
+    chart_max = _yaxis_max(thresholds)
 
     return [
         {
@@ -212,7 +218,7 @@ def _build_overview_view(
     low = thresholds.get("low", 200)
     high = thresholds.get("high", 300)
     very_high = thresholds.get("very_high", 400)
-    yaxis_max = very_high + 50
+    yaxis_max = _yaxis_max(thresholds)
 
     cards: list[dict[str, Any]] = []
 
@@ -245,6 +251,8 @@ def _build_overview_view(
                     "max": yaxis_max,
                     "opposite": True,
                     "tickAmount": yaxis_max // 50,
+                    "forceNiceScale": False,
+                    "decimalsInFloat": 0,
                 },
                 "annotations": {
                     "yaxis": _zone_annotations_fill(thresholds),
@@ -524,7 +532,7 @@ def _build_stats_view(
 ) -> dict[str, Any]:
     """Build the statistics view with 6-zone distribution and charts."""
     very_high = thresholds.get("very_high", 400)
-    yaxis_max = very_high + 50
+    yaxis_max = _yaxis_max(thresholds)
 
     cards: list[dict[str, Any]] = []
 
@@ -636,6 +644,8 @@ def _build_stats_view(
                         "max": yaxis_max,
                         "opposite": True,
                         "tickAmount": yaxis_max // 50,
+                        "forceNiceScale": False,
+                        "decimalsInFloat": 0,
                     },
                     "annotations": {
                         "yaxis": _zone_annotations_lines(thresholds),
