@@ -82,17 +82,60 @@
       },
       "manage_alarm_settings": {
         "title": "Alarm settings",
-        "description": "Set priority per alarm type and notification targets.",
+        "description": "Select alarm category.",
+        "menu_options": {
+          "alarm_low_range": "Low alarms",
+          "alarm_high_range": "High alarms",
+          "alarm_trend": "Trend alarms",
+          "alarm_no_data": "Data gap",
+          "alarm_targets": "Notification targets"
+        }
+      },
+      "alarm_low_range": {
+        "title": "Low alarms",
+        "description": "Alarm priority for low glucose levels.",
         "data": {
-          "alarm_critical_low": "Critically low (<55)",
-          "alarm_very_low": "Very low (55-100)",
-          "alarm_low": "Low (100-200)",
-          "alarm_falling_quickly": "Falling quickly (trend)",
-          "alarm_high": "High (300-400)",
-          "alarm_very_high": "Very high (>400)",
-          "alarm_rising_quickly": "Rising quickly (trend)",
+          "alarm_critical_low": "Critical low",
+          "alarm_very_low": "Very low",
+          "alarm_low": "Low",
+          "apply_to_all": "Apply settings to all subjects"
+        }
+      },
+      "alarm_high_range": {
+        "title": "High alarms",
+        "description": "Alarm priority for high glucose levels.",
+        "data": {
+          "alarm_high": "High",
+          "alarm_very_high": "Very high",
+          "apply_to_all": "Apply settings to all subjects"
+        }
+      },
+      "alarm_trend": {
+        "title": "Trend alarms",
+        "description": "Configure trend alarms for falling and rising glucose.",
+        "data": {
+          "alarm_falling_triggers": "Falling trend triggers",
+          "alarm_falling_min_status": "Minimum status (falling)",
+          "alarm_falling_priority": "Priority (falling)",
+          "alarm_rising_triggers": "Rising trend triggers",
+          "alarm_rising_min_status": "Minimum status (rising)",
+          "alarm_rising_priority": "Priority (rising)",
+          "apply_to_all": "Apply settings to all subjects"
+        }
+      },
+      "alarm_no_data": {
+        "title": "Data gap",
+        "description": "Alarm when no glucose signal is received.",
+        "data": {
           "alarm_no_data": "Data gap (no signal)",
-          "notify_targets": "Notification targets (comma-separated, e.g. mobile_app_myphone)"
+          "apply_to_all": "Apply settings to all subjects"
+        }
+      },
+      "alarm_targets": {
+        "title": "Notification targets",
+        "description": "Comma-separated mobile_app_* services.",
+        "data": {
+          "notify_targets": "Notification targets (e.g. mobile_app_myphone)"
         }
       },
       "manage_email_settings": {

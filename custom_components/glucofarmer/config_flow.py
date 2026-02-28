@@ -16,6 +16,7 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -28,12 +29,20 @@ from .const import (
     ALARM_PRIORITY_CRITICAL,
     ALARM_PRIORITY_NOTIFICATION,
     ALARM_PRIORITY_OFF,
+    ALARM_TRIGGER_ALL,
+    ALARM_TRIGGER_AND_QUICKLY,
+    ALARM_TRIGGER_OFF,
+    ALARM_TRIGGER_QUICKLY_ONLY,
     CONF_ALARM_CRITICAL_LOW,
-    CONF_ALARM_FALLING_QUICKLY,
+    CONF_ALARM_FALLING_MIN_STATUS,
+    CONF_ALARM_FALLING_PRIORITY,
+    CONF_ALARM_FALLING_TRIGGERS,
     CONF_ALARM_HIGH,
     CONF_ALARM_LOW,
     CONF_ALARM_NO_DATA,
-    CONF_ALARM_RISING_QUICKLY,
+    CONF_ALARM_RISING_MIN_STATUS,
+    CONF_ALARM_RISING_PRIORITY,
+    CONF_ALARM_RISING_TRIGGERS,
     CONF_ALARM_VERY_HIGH,
     CONF_ALARM_VERY_LOW,
     CONF_GLUCOSE_SENSOR,
@@ -44,11 +53,15 @@ from .const import (
     CONF_SUBJECT_WEIGHT_KG,
     CONF_TREND_SENSOR,
     DEFAULT_ALARM_CRITICAL_LOW,
-    DEFAULT_ALARM_FALLING_QUICKLY,
+    DEFAULT_ALARM_FALLING_MIN_STATUS,
+    DEFAULT_ALARM_FALLING_PRIORITY,
+    DEFAULT_ALARM_FALLING_TRIGGERS,
     DEFAULT_ALARM_HIGH,
     DEFAULT_ALARM_LOW,
     DEFAULT_ALARM_NO_DATA,
-    DEFAULT_ALARM_RISING_QUICKLY,
+    DEFAULT_ALARM_RISING_MIN_STATUS,
+    DEFAULT_ALARM_RISING_PRIORITY,
+    DEFAULT_ALARM_RISING_TRIGGERS,
     DEFAULT_ALARM_VERY_HIGH,
     DEFAULT_ALARM_VERY_LOW,
     DEFAULT_NOTIFY_TARGETS,
@@ -341,28 +354,51 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
     async def async_step_manage_alarm_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage alarm priorities and notification targets."""
+        """Alarm settings submenu."""
+        return self.async_show_menu(
+            step_id="manage_alarm_settings",
+            menu_options=[
+                "alarm_low_range",
+                "alarm_high_range",
+                "alarm_trend",
+                "alarm_no_data",
+                "alarm_targets",
+            ],
+        )
+
+    def _apply_alarm_to_all(self, alarm_keys: list[str], values: dict[str, Any]) -> None:
+        """Copy the given alarm keys to all other GlucoFarmer config entries."""
+        for other_entry in self.hass.config_entries.async_entries(DOMAIN):
+            if other_entry.entry_id == self.config_entry.entry_id:
+                continue
+            updated = dict(other_entry.options)
+            for key in alarm_keys:
+                if key in values:
+                    updated[key] = values[key]
+            self.hass.config_entries.async_update_entry(other_entry, options=updated)
+
+    async def async_step_alarm_low_range(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure low glucose alarms."""
+        alarm_keys = [CONF_ALARM_CRITICAL_LOW, CONF_ALARM_VERY_LOW, CONF_ALARM_LOW]
         if user_input is not None:
+            apply_to_all = user_input.pop("apply_to_all", False)
             new_options = dict(self.config_entry.options)
-            new_options[CONF_ALARM_CRITICAL_LOW] = user_input[CONF_ALARM_CRITICAL_LOW]
-            new_options[CONF_ALARM_VERY_LOW] = user_input[CONF_ALARM_VERY_LOW]
-            new_options[CONF_ALARM_LOW] = user_input[CONF_ALARM_LOW]
-            new_options[CONF_ALARM_HIGH] = user_input[CONF_ALARM_HIGH]
-            new_options[CONF_ALARM_VERY_HIGH] = user_input[CONF_ALARM_VERY_HIGH]
-            new_options[CONF_ALARM_NO_DATA] = user_input[CONF_ALARM_NO_DATA]
-            new_options[CONF_ALARM_FALLING_QUICKLY] = user_input[CONF_ALARM_FALLING_QUICKLY]
-            new_options[CONF_ALARM_RISING_QUICKLY] = user_input[CONF_ALARM_RISING_QUICKLY]
-            new_options[CONF_NOTIFY_TARGETS] = user_input.get(CONF_NOTIFY_TARGETS, "")
+            for key in alarm_keys:
+                new_options[key] = user_input[key]
+            if apply_to_all:
+                self._apply_alarm_to_all(alarm_keys, user_input)
             return self.async_create_entry(title="", data=new_options)
 
         cur = self.config_entry.options
         priority_options = [
             {"value": ALARM_PRIORITY_CRITICAL, "label": "Critical Alert (DND-Bypass)"},
-            {"value": ALARM_PRIORITY_NOTIFICATION, "label": "Benachrichtigung"},
-            {"value": ALARM_PRIORITY_OFF, "label": "Deaktiviert"},
+            {"value": ALARM_PRIORITY_NOTIFICATION, "label": "Notification"},
+            {"value": ALARM_PRIORITY_OFF, "label": "Off"},
         ]
         return self.async_show_form(
-            step_id="manage_alarm_settings",
+            step_id="alarm_low_range",
             data_schema=vol.Schema(
                 {
                     vol.Required(
@@ -377,10 +413,35 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
                         CONF_ALARM_LOW,
                         default=cur.get(CONF_ALARM_LOW, DEFAULT_ALARM_LOW),
                     ): SelectSelector(SelectSelectorConfig(options=priority_options)),
-                    vol.Required(
-                        CONF_ALARM_FALLING_QUICKLY,
-                        default=cur.get(CONF_ALARM_FALLING_QUICKLY, DEFAULT_ALARM_FALLING_QUICKLY),
-                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Optional("apply_to_all", default=False): BooleanSelector(),
+                }
+            ),
+        )
+
+    async def async_step_alarm_high_range(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure high glucose alarms."""
+        alarm_keys = [CONF_ALARM_HIGH, CONF_ALARM_VERY_HIGH]
+        if user_input is not None:
+            apply_to_all = user_input.pop("apply_to_all", False)
+            new_options = dict(self.config_entry.options)
+            for key in alarm_keys:
+                new_options[key] = user_input[key]
+            if apply_to_all:
+                self._apply_alarm_to_all(alarm_keys, user_input)
+            return self.async_create_entry(title="", data=new_options)
+
+        cur = self.config_entry.options
+        priority_options = [
+            {"value": ALARM_PRIORITY_CRITICAL, "label": "Critical Alert (DND-Bypass)"},
+            {"value": ALARM_PRIORITY_NOTIFICATION, "label": "Notification"},
+            {"value": ALARM_PRIORITY_OFF, "label": "Off"},
+        ]
+        return self.async_show_form(
+            step_id="alarm_high_range",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
                         CONF_ALARM_HIGH,
                         default=cur.get(CONF_ALARM_HIGH, DEFAULT_ALARM_HIGH),
@@ -389,14 +450,138 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
                         CONF_ALARM_VERY_HIGH,
                         default=cur.get(CONF_ALARM_VERY_HIGH, DEFAULT_ALARM_VERY_HIGH),
                     ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Optional("apply_to_all", default=False): BooleanSelector(),
+                }
+            ),
+        )
+
+    async def async_step_alarm_trend(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure trend alarms."""
+        alarm_keys = [
+            CONF_ALARM_FALLING_TRIGGERS,
+            CONF_ALARM_FALLING_MIN_STATUS,
+            CONF_ALARM_FALLING_PRIORITY,
+            CONF_ALARM_RISING_TRIGGERS,
+            CONF_ALARM_RISING_MIN_STATUS,
+            CONF_ALARM_RISING_PRIORITY,
+        ]
+        if user_input is not None:
+            apply_to_all = user_input.pop("apply_to_all", False)
+            new_options = dict(self.config_entry.options)
+            for key in alarm_keys:
+                new_options[key] = user_input[key]
+            if apply_to_all:
+                self._apply_alarm_to_all(alarm_keys, user_input)
+            return self.async_create_entry(title="", data=new_options)
+
+        cur = self.config_entry.options
+        falling_trigger_options = [
+            {"value": ALARM_TRIGGER_OFF, "label": "Off"},
+            {"value": ALARM_TRIGGER_QUICKLY_ONLY, "label": "Falling quickly only"},
+            {"value": ALARM_TRIGGER_AND_QUICKLY, "label": "Falling + Falling quickly"},
+            {"value": ALARM_TRIGGER_ALL, "label": "All (incl. Falling slightly)"},
+        ]
+        falling_min_status_options = [
+            {"value": "any", "label": "Any glucose level"},
+            {"value": "low", "label": "Low or below"},
+            {"value": "very_low", "label": "Very low or below"},
+        ]
+        rising_trigger_options = [
+            {"value": ALARM_TRIGGER_OFF, "label": "Off"},
+            {"value": ALARM_TRIGGER_QUICKLY_ONLY, "label": "Rising quickly only"},
+            {"value": ALARM_TRIGGER_AND_QUICKLY, "label": "Rising + Rising quickly"},
+            {"value": ALARM_TRIGGER_ALL, "label": "All (incl. Rising slightly)"},
+        ]
+        rising_min_status_options = [
+            {"value": "any", "label": "Any glucose level"},
+            {"value": "high", "label": "High or above"},
+            {"value": "very_high", "label": "Very high or above"},
+        ]
+        priority_options = [
+            {"value": ALARM_PRIORITY_CRITICAL, "label": "Critical Alert (DND-Bypass)"},
+            {"value": ALARM_PRIORITY_NOTIFICATION, "label": "Notification"},
+        ]
+        return self.async_show_form(
+            step_id="alarm_trend",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
-                        CONF_ALARM_RISING_QUICKLY,
-                        default=cur.get(CONF_ALARM_RISING_QUICKLY, DEFAULT_ALARM_RISING_QUICKLY),
+                        CONF_ALARM_FALLING_TRIGGERS,
+                        default=cur.get(CONF_ALARM_FALLING_TRIGGERS, DEFAULT_ALARM_FALLING_TRIGGERS),
+                    ): SelectSelector(SelectSelectorConfig(options=falling_trigger_options)),
+                    vol.Required(
+                        CONF_ALARM_FALLING_MIN_STATUS,
+                        default=cur.get(CONF_ALARM_FALLING_MIN_STATUS, DEFAULT_ALARM_FALLING_MIN_STATUS),
+                    ): SelectSelector(SelectSelectorConfig(options=falling_min_status_options)),
+                    vol.Required(
+                        CONF_ALARM_FALLING_PRIORITY,
+                        default=cur.get(CONF_ALARM_FALLING_PRIORITY, DEFAULT_ALARM_FALLING_PRIORITY),
                     ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_RISING_TRIGGERS,
+                        default=cur.get(CONF_ALARM_RISING_TRIGGERS, DEFAULT_ALARM_RISING_TRIGGERS),
+                    ): SelectSelector(SelectSelectorConfig(options=rising_trigger_options)),
+                    vol.Required(
+                        CONF_ALARM_RISING_MIN_STATUS,
+                        default=cur.get(CONF_ALARM_RISING_MIN_STATUS, DEFAULT_ALARM_RISING_MIN_STATUS),
+                    ): SelectSelector(SelectSelectorConfig(options=rising_min_status_options)),
+                    vol.Required(
+                        CONF_ALARM_RISING_PRIORITY,
+                        default=cur.get(CONF_ALARM_RISING_PRIORITY, DEFAULT_ALARM_RISING_PRIORITY),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Optional("apply_to_all", default=False): BooleanSelector(),
+                }
+            ),
+        )
+
+    async def async_step_alarm_no_data(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure data gap alarm."""
+        alarm_keys = [CONF_ALARM_NO_DATA]
+        if user_input is not None:
+            apply_to_all = user_input.pop("apply_to_all", False)
+            new_options = dict(self.config_entry.options)
+            new_options[CONF_ALARM_NO_DATA] = user_input[CONF_ALARM_NO_DATA]
+            if apply_to_all:
+                self._apply_alarm_to_all(alarm_keys, user_input)
+            return self.async_create_entry(title="", data=new_options)
+
+        cur = self.config_entry.options
+        priority_options = [
+            {"value": ALARM_PRIORITY_CRITICAL, "label": "Critical Alert (DND-Bypass)"},
+            {"value": ALARM_PRIORITY_NOTIFICATION, "label": "Notification"},
+            {"value": ALARM_PRIORITY_OFF, "label": "Off"},
+        ]
+        return self.async_show_form(
+            step_id="alarm_no_data",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
                         CONF_ALARM_NO_DATA,
                         default=cur.get(CONF_ALARM_NO_DATA, DEFAULT_ALARM_NO_DATA),
                     ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Optional("apply_to_all", default=False): BooleanSelector(),
+                }
+            ),
+        )
+
+    async def async_step_alarm_targets(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure notification targets."""
+        if user_input is not None:
+            new_options = dict(self.config_entry.options)
+            new_options[CONF_NOTIFY_TARGETS] = user_input.get(CONF_NOTIFY_TARGETS, "")
+            return self.async_create_entry(title="", data=new_options)
+
+        cur = self.config_entry.options
+        return self.async_show_form(
+            step_id="alarm_targets",
+            data_schema=vol.Schema(
+                {
                     vol.Optional(
                         CONF_NOTIFY_TARGETS,
                         default=cur.get(CONF_NOTIFY_TARGETS, DEFAULT_NOTIFY_TARGETS),

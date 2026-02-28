@@ -27,6 +27,10 @@ from homeassistant.components.recorder.history import state_changes_during_perio
 from .const import (
     ALARM_PRIORITY_CRITICAL,
     ALARM_PRIORITY_OFF,
+    ALARM_TRIGGER_ALL,
+    ALARM_TRIGGER_AND_QUICKLY,
+    ALARM_TRIGGER_OFF,
+    ALARM_TRIGGER_QUICKLY_ONLY,
     ATTR_AMOUNT,
     ATTR_CATEGORY,
     ATTR_DESCRIPTION,
@@ -36,11 +40,15 @@ from .const import (
     ATTR_PRODUCT,
     ATTR_TIMESTAMP,
     CONF_ALARM_CRITICAL_LOW,
-    CONF_ALARM_FALLING_QUICKLY,
+    CONF_ALARM_FALLING_MIN_STATUS,
+    CONF_ALARM_FALLING_PRIORITY,
+    CONF_ALARM_FALLING_TRIGGERS,
     CONF_ALARM_HIGH,
     CONF_ALARM_LOW,
     CONF_ALARM_NO_DATA,
-    CONF_ALARM_RISING_QUICKLY,
+    CONF_ALARM_RISING_MIN_STATUS,
+    CONF_ALARM_RISING_PRIORITY,
+    CONF_ALARM_RISING_TRIGGERS,
     CONF_ALARM_VERY_HIGH,
     CONF_ALARM_VERY_LOW,
     CONF_GLUCOSE_SENSOR,
@@ -56,11 +64,15 @@ from .const import (
     CONF_SMTP_USERNAME,
     CONF_SUBJECT_NAME,
     DEFAULT_ALARM_CRITICAL_LOW,
-    DEFAULT_ALARM_FALLING_QUICKLY,
+    DEFAULT_ALARM_FALLING_MIN_STATUS,
+    DEFAULT_ALARM_FALLING_PRIORITY,
+    DEFAULT_ALARM_FALLING_TRIGGERS,
     DEFAULT_ALARM_HIGH,
     DEFAULT_ALARM_LOW,
     DEFAULT_ALARM_NO_DATA,
-    DEFAULT_ALARM_RISING_QUICKLY,
+    DEFAULT_ALARM_RISING_MIN_STATUS,
+    DEFAULT_ALARM_RISING_PRIORITY,
+    DEFAULT_ALARM_RISING_TRIGGERS,
     DEFAULT_ALARM_VERY_HIGH,
     DEFAULT_ALARM_VERY_LOW,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
@@ -173,8 +185,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
         "critical_low_notified": False,
         "high_notified": False,
         "no_data_notified": False,
-        "falling_quickly_notified": False,
-        "rising_quickly_notified": False,
+        "falling_notified": False,
+        "rising_notified": False,
     })
     _high_glucose_since.setdefault(subject_name, None)
 
@@ -310,6 +322,50 @@ async def _refresh_coordinator_for_subject(hass: HomeAssistant, subject_name: st
             await entry.runtime_data.async_request_refresh()
 
 
+_FALLING_TRENDS = {"falling_slightly", "falling", "falling_quickly"}
+_RISING_TRENDS = {"rising_slightly", "rising", "rising_quickly"}
+
+
+def _falling_trend_matches(trend: str, triggers: str) -> bool:
+    if triggers == ALARM_TRIGGER_OFF:
+        return False
+    if triggers == ALARM_TRIGGER_QUICKLY_ONLY:
+        return trend == "falling_quickly"
+    if triggers == ALARM_TRIGGER_AND_QUICKLY:
+        return trend in {"falling", "falling_quickly"}
+    if triggers == ALARM_TRIGGER_ALL:
+        return trend in _FALLING_TRENDS
+    return False
+
+
+def _rising_trend_matches(trend: str, triggers: str) -> bool:
+    if triggers == ALARM_TRIGGER_OFF:
+        return False
+    if triggers == ALARM_TRIGGER_QUICKLY_ONLY:
+        return trend == "rising_quickly"
+    if triggers == ALARM_TRIGGER_AND_QUICKLY:
+        return trend in {"rising", "rising_quickly"}
+    if triggers == ALARM_TRIGGER_ALL:
+        return trend in _RISING_TRENDS
+    return False
+
+
+def _falling_status_ok(status: str, min_status: str) -> bool:
+    if min_status == "low":
+        return status in {STATUS_LOW, STATUS_VERY_LOW, STATUS_CRITICAL_LOW}
+    if min_status == "very_low":
+        return status in {STATUS_VERY_LOW, STATUS_CRITICAL_LOW}
+    return True  # "any"
+
+
+def _rising_status_ok(status: str, min_status: str) -> bool:
+    if min_status == "high":
+        return status in {STATUS_HIGH, STATUS_VERY_HIGH}
+    if min_status == "very_high":
+        return status in {STATUS_VERY_HIGH}
+    return True  # "any"
+
+
 @callback
 def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> None:
     """Check glucose levels and send alarm notifications."""
@@ -332,6 +388,13 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
         if configured == ALARM_PRIORITY_OFF:
             return
         internal = "critical" if configured == ALARM_PRIORITY_CRITICAL else "high"
+        hass.async_create_task(
+            _send_notification(hass, title=title, message=message, priority=internal, opts=opts)
+        )
+
+    def _fire_priority(title: str, message: str, priority: str) -> None:
+        """Send alarm with a directly given priority (critical or notification)."""
+        internal = "critical" if priority == ALARM_PRIORITY_CRITICAL else "high"
         hass.async_create_task(
             _send_notification(hass, title=title, message=message, priority=internal, opts=opts)
         )
@@ -381,27 +444,42 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
         )
         state["no_data_notified"] = True
 
-    # Trend alarms
+    # Trend alarms - falling
     trend = coordinator.data.glucose_trend
-    if trend == "falling_quickly" and not state["falling_quickly_notified"]:
-        _fire(
-            f"CRITICAL: {subject_name} Glukose fällt schnell!",
-            f"{subject_name}: {glucose} mg/dL und fällt stark",
-            CONF_ALARM_FALLING_QUICKLY, DEFAULT_ALARM_FALLING_QUICKLY,
-        )
-        state["falling_quickly_notified"] = True
-    elif trend != "falling_quickly":
-        state["falling_quickly_notified"] = False
+    falling_triggers = opts.get(CONF_ALARM_FALLING_TRIGGERS, DEFAULT_ALARM_FALLING_TRIGGERS)
+    falling_min_status = opts.get(CONF_ALARM_FALLING_MIN_STATUS, DEFAULT_ALARM_FALLING_MIN_STATUS)
+    falling_priority = opts.get(CONF_ALARM_FALLING_PRIORITY, DEFAULT_ALARM_FALLING_PRIORITY)
+    if (
+        _falling_trend_matches(trend, falling_triggers)
+        and _falling_status_ok(status, falling_min_status)
+    ):
+        if not state["falling_notified"]:
+            _fire_priority(
+                f"CRITICAL: {subject_name} Glukose fällt!",
+                f"{subject_name}: {glucose} mg/dL – {trend}",
+                falling_priority,
+            )
+            state["falling_notified"] = True
+    elif trend not in _FALLING_TRENDS:
+        state["falling_notified"] = False
 
-    if trend == "rising_quickly" and not state["rising_quickly_notified"]:
-        _fire(
-            f"Warnung: {subject_name} Glukose steigt schnell",
-            f"{subject_name}: {glucose} mg/dL und steigt stark",
-            CONF_ALARM_RISING_QUICKLY, DEFAULT_ALARM_RISING_QUICKLY,
-        )
-        state["rising_quickly_notified"] = True
-    elif trend != "rising_quickly":
-        state["rising_quickly_notified"] = False
+    # Trend alarms - rising
+    rising_triggers = opts.get(CONF_ALARM_RISING_TRIGGERS, DEFAULT_ALARM_RISING_TRIGGERS)
+    rising_min_status = opts.get(CONF_ALARM_RISING_MIN_STATUS, DEFAULT_ALARM_RISING_MIN_STATUS)
+    rising_priority = opts.get(CONF_ALARM_RISING_PRIORITY, DEFAULT_ALARM_RISING_PRIORITY)
+    if (
+        _rising_trend_matches(trend, rising_triggers)
+        and _rising_status_ok(status, rising_min_status)
+    ):
+        if not state["rising_notified"]:
+            _fire_priority(
+                f"Warnung: {subject_name} Glukose steigt!",
+                f"{subject_name}: {glucose} mg/dL – {trend}",
+                rising_priority,
+            )
+            state["rising_notified"] = True
+    elif trend not in _RISING_TRENDS:
+        state["rising_notified"] = False
 
     # Reset no_data flag as soon as signal returns (regardless of glucose level)
     if status != STATUS_NO_DATA:

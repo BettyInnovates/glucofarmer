@@ -82,17 +82,60 @@
       },
       "manage_alarm_settings": {
         "title": "Alarm-Einstellungen",
-        "description": "Prioritaet pro Alarm-Typ und Benachrichtigungs-Ziele festlegen.",
+        "description": "Alarm-Kategorie auswaehlen.",
+        "menu_options": {
+          "alarm_low_range": "Niedrig-Alarme",
+          "alarm_high_range": "Hoch-Alarme",
+          "alarm_trend": "Trend-Alarme",
+          "alarm_no_data": "Datenlücke",
+          "alarm_targets": "Benachrichtigungs-Ziele"
+        }
+      },
+      "alarm_low_range": {
+        "title": "Niedrig-Alarme",
+        "description": "Alarm-Prioritaet fuer niedrige Glukosewerte.",
         "data": {
-          "alarm_critical_low": "Kritisch niedrig (<55)",
-          "alarm_very_low": "Sehr niedrig (55-100)",
-          "alarm_low": "Niedrig (100-200)",
-          "alarm_falling_quickly": "Faellt schnell (Trend)",
-          "alarm_high": "Hoch (300-400)",
-          "alarm_very_high": "Sehr hoch (>400)",
-          "alarm_rising_quickly": "Steigt schnell (Trend)",
+          "alarm_critical_low": "Kritisch niedrig",
+          "alarm_very_low": "Sehr niedrig",
+          "alarm_low": "Niedrig",
+          "apply_to_all": "Einstellungen auf alle Subjekte uebernehmen"
+        }
+      },
+      "alarm_high_range": {
+        "title": "Hoch-Alarme",
+        "description": "Alarm-Prioritaet fuer hohe Glukosewerte.",
+        "data": {
+          "alarm_high": "Hoch",
+          "alarm_very_high": "Sehr hoch",
+          "apply_to_all": "Einstellungen auf alle Subjekte uebernehmen"
+        }
+      },
+      "alarm_trend": {
+        "title": "Trend-Alarme",
+        "description": "Konfiguration der Trend-Alarme fuer fallende und steigende Werte.",
+        "data": {
+          "alarm_falling_triggers": "Fallende Trends ausloesen",
+          "alarm_falling_min_status": "Mindest-Status (fallend)",
+          "alarm_falling_priority": "Prioritaet (fallend)",
+          "alarm_rising_triggers": "Steigende Trends ausloesen",
+          "alarm_rising_min_status": "Mindest-Status (steigend)",
+          "alarm_rising_priority": "Prioritaet (steigend)",
+          "apply_to_all": "Einstellungen auf alle Subjekte uebernehmen"
+        }
+      },
+      "alarm_no_data": {
+        "title": "Datenlücke",
+        "description": "Alarm wenn kein Glukose-Signal empfangen wird.",
+        "data": {
           "alarm_no_data": "Datenlücke (kein Signal)",
-          "notify_targets": "Benachrichtigungs-Ziele (kommagetrennt, z.B. mobile_app_handy)"
+          "apply_to_all": "Einstellungen auf alle Subjekte uebernehmen"
+        }
+      },
+      "alarm_targets": {
+        "title": "Benachrichtigungs-Ziele",
+        "description": "Kommagetrennte mobile_app_* Dienste.",
+        "data": {
+          "notify_targets": "Benachrichtigungs-Ziele (z.B. mobile_app_handy)"
         }
       },
       "manage_email_settings": {
