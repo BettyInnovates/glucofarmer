@@ -248,10 +248,10 @@ class GlucoFarmerSensorEntity(
 class GlucoFarmerEventsSensor(
     CoordinatorEntity[GlucoFarmerCoordinator], SensorEntity
 ):
-    """Sensor that exposes today's events as attributes for dashboard display."""
+    """Sensor exposing recent events (last 24h) as attributes for dashboard display."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "today_events"
+    _attr_translation_key = "recent_events"
 
     def __init__(
         self,
@@ -261,7 +261,7 @@ class GlucoFarmerEventsSensor(
     ) -> None:
         """Initialize the events sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{entry_id}_today_events"
+        self._attr_unique_id = f"{entry_id}_recent_events"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=subject_name,
@@ -271,14 +271,35 @@ class GlucoFarmerEventsSensor(
 
     @property
     def native_value(self) -> int:
-        """Return count of today's events."""
+        """Return count of events in last 24h."""
         if self.coordinator.data is None:
             return 0
         return len(self.coordinator.data.today_events)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return today's events as attributes."""
+        """Return formatted events list (newest first, max 10) for markdown display."""
         if self.coordinator.data is None:
             return {"events": []}
-        return {"events": self.coordinator.data.today_events}
+        events = sorted(
+            self.coordinator.data.today_events,
+            key=lambda e: e.get("timestamp", ""),
+            reverse=True,
+        )[:10]
+        formatted = []
+        for e in events:
+            ts = e.get("timestamp", "")
+            time_str = ts[11:16] if len(ts) >= 16 else ts  # HH:MM
+            if e.get("type") == "feeding":
+                formatted.append({
+                    "type": "feeding",
+                    "label": f"🍎 {time_str}  {e.get('amount', 0)} BE  ({e.get('category', '')})",
+                    "id": e.get("id", ""),
+                })
+            else:
+                formatted.append({
+                    "type": "insulin",
+                    "label": f"💉 {time_str}  {e.get('amount', 0)} IU  ({e.get('product', '')})",
+                    "id": e.get("id", ""),
+                })
+        return {"events": formatted}

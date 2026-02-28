@@ -17,11 +17,15 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_GLUCOSE_SENSOR,
+    CONF_INSULIN_TYPES,
+    CONF_MEALS,
     CONF_SUBJECT_NAME,
+    CONF_SUBJECT_WEIGHT_KG,
     CONF_TREND_SENSOR,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_DATA_TIMEOUT,
     DEFAULT_HIGH_THRESHOLD,
+    DEFAULT_INSULIN_TYPES,
     DEFAULT_LOW_THRESHOLD,
     DEFAULT_VERY_HIGH_THRESHOLD,
     DEFAULT_VERY_LOW_THRESHOLD,
@@ -127,13 +131,19 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self._threshold_store: Store | None = None
         self._write_thresholds_to_shared()
 
-        # Input state (updated by number/select/text entities, read by button entities)
-        self.feeding_amount: float = 0
-        self.feeding_category: str = ""
-        self.insulin_amount: float = 0
-        self.insulin_product: str = ""
-        self.event_timestamp: str = ""
-        self.archive_event_id: str = ""
+        # Input state (updated by select/number entities, read by button entities)
+        self.be_amount: float = 0.0
+        self.meal_selection: str = "Any"
+        self.insulin_units: float = 0.0
+        self.insulin_type_selection: str = ""
+        self.minutes_ago: int = 0
+        self.form_mode: str = "—"
+        # References to form entities (set during async_setup_entry)
+        self.be_amount_entity: object = None
+        self.minutes_ago_entity: object = None
+        self.insulin_units_entity: object = None
+        self.form_mode_entity: object = None
+        self.meal_entity: object = None
 
         # Last time we had a valid glucose reading (used for age when sensor goes unavailable)
         self._last_valid_reading_time: datetime | None = None
@@ -143,6 +153,21 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
 
         # Pending debounced dashboard refresh task (used after startup restore)
         self._dashboard_refresh_task: asyncio.Task | None = None
+
+    @property
+    def weight_kg(self) -> float:
+        """Subject weight in kg (from config entry options)."""
+        return float(self.config_entry.options.get(CONF_SUBJECT_WEIGHT_KG, 0.0))
+
+    @property
+    def meals(self) -> list[dict]:
+        """Meal definitions from config entry options."""
+        return list(self.config_entry.options.get(CONF_MEALS, []))
+
+    @property
+    def insulin_types(self) -> list[str]:
+        """Insulin type names from config entry options."""
+        return list(self.config_entry.options.get(CONF_INSULIN_TYPES, DEFAULT_INSULIN_TYPES))
 
     async def _async_update_data(self) -> GlucoFarmerData:
         """Fetch data from Dexcom sensors and compute stats."""
@@ -218,8 +243,8 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         daily_insulin = self._compute_daily_insulin()
         daily_bes = self._compute_daily_bes()
 
-        # Today's events for display
-        today_events = self.store.get_today_events(self.subject_name)
+        # Recent events for display (rolling 24h -- avoids M1 midnight disappearance bug)
+        today_events = self.store.get_events_since(self.subject_name, hours=24)
 
         return GlucoFarmerData(
             glucose_value=glucose_value,

@@ -10,7 +10,8 @@
         "data": {
           "pig_name": "Profile name",
           "glucose_sensor": "Dexcom glucose sensor",
-          "trend_sensor": "Dexcom trend sensor"
+          "trend_sensor": "Dexcom trend sensor",
+          "weight_kg": "Weight (kg)"
         }
       }
     }
@@ -19,77 +20,63 @@
     "step": {
       "init": {
         "title": "GlucoFarmer settings",
-        "description": "Manage insulin products, feeding categories, and presets.",
+        "description": "Manage subject profile, meals, and insulin types.",
         "menu_options": {
-          "manage_insulin_products": "Manage insulin products",
-          "manage_feeding_categories": "Manage feeding categories",
-          "manage_presets": "Manage presets",
+          "manage_subject_profile": "Subject profile (weight, sensor)",
+          "manage_meals": "Manage meals",
+          "manage_insulin_types": "Manage insulin types",
           "manage_email_settings": "Email settings (daily report)"
         }
       },
-      "manage_insulin_products": {
-        "title": "Insulin products",
-        "description": "Add or remove insulin products for this profile.",
+      "manage_subject_profile": {
+        "title": "Subject profile",
+        "description": "Edit weight and sensor assignments.",
+        "data": {
+          "weight_kg": "Weight (kg)",
+          "glucose_sensor": "Glucose sensor",
+          "trend_sensor": "Trend sensor"
+        }
+      },
+      "manage_meals": {
+        "title": "Meals",
+        "description": "Add or remove meal definitions.",
         "menu_options": {
-          "add_insulin_product": "Add insulin product",
-          "remove_insulin_product": "Remove insulin product"
+          "add_meal": "Add meal",
+          "remove_meal": "Remove meal"
         }
       },
-      "add_insulin_product": {
-        "title": "Add insulin product",
+      "add_meal": {
+        "title": "Add meal",
         "data": {
-          "name": "Product name",
-          "category": "Category"
+          "name": "Name",
+          "mode": "BE calculation",
+          "value": "Value (BE or BE/kg)"
         }
       },
-      "remove_insulin_product": {
-        "title": "Remove insulin product",
+      "remove_meal": {
+        "title": "Remove meal",
         "data": {
-          "product": "Product to remove"
+          "meal": "Meal to remove"
         }
       },
-      "manage_feeding_categories": {
-        "title": "Feeding categories",
-        "description": "Add or remove feeding categories for this profile.",
+      "manage_insulin_types": {
+        "title": "Insulin types",
+        "description": "Add or remove insulin types.",
         "menu_options": {
-          "add_feeding_category": "Add feeding category",
-          "remove_feeding_category": "Remove feeding category"
+          "add_insulin_type": "Add insulin type",
+          "remove_insulin_type": "Remove insulin type"
         }
       },
-      "add_feeding_category": {
-        "title": "Add feeding category",
+      "add_insulin_type": {
+        "title": "Add insulin type",
         "data": {
-          "category": "Category name"
+          "name": "Type name"
         }
       },
-      "remove_feeding_category": {
-        "title": "Remove feeding category",
+      "remove_insulin_type": {
+        "title": "Remove insulin type",
         "data": {
-          "category": "Category to remove"
-        }
-      },
-      "manage_presets": {
-        "title": "Presets",
-        "description": "Add or remove quick-input presets for this profile.",
-        "menu_options": {
-          "add_preset": "Add preset",
-          "remove_preset": "Remove preset"
-        }
-      },
-      "add_preset": {
-        "title": "Add preset",
-        "data": {
-          "name": "Preset name",
-          "type": "Type",
-          "product": "Insulin product",
-          "feeding_category": "Feeding category",
-          "amount": "Amount (IU or BE)"
-        }
-      },
-      "remove_preset": {
-        "title": "Remove preset",
-        "data": {
-          "preset": "Preset to remove"
+          "type": "Type to remove"
         }
       },
       "manage_email_settings": {
@@ -109,9 +96,8 @@
       }
     },
     "abort": {
-      "no_products": "No insulin products to remove.",
-      "no_categories": "No feeding categories to remove.",
-      "no_presets": "No presets to remove."
+      "no_meals": "No meals to remove.",
+      "no_insulin_types": "No insulin types to remove."
     }
   },
   "entity": {
@@ -183,8 +169,8 @@
       "daily_bes_total": {
         "name": "Daily BE total"
       },
-      "today_events": {
-        "name": "Today events"
+      "recent_events": {
+        "name": "Recent events (24h)"
       }
     },
     "number": {
@@ -206,41 +192,36 @@
       "data_timeout": {
         "name": "Data timeout"
       },
-      "feeding_amount": {
-        "name": "Feeding amount"
+      "be_amount": {
+        "name": "BE amount"
       },
-      "insulin_amount": {
-        "name": "Insulin amount"
+      "minutes_ago": {
+        "name": "Minutes ago"
+      },
+      "insulin_units": {
+        "name": "Insulin units (IU)"
       }
     },
     "select": {
-      "feeding_category": {
-        "name": "Feeding category"
+      "form_mode": {
+        "name": "Form"
       },
-      "insulin_product": {
-        "name": "Insulin product"
+      "meal": {
+        "name": "Meal"
+      },
+      "insulin_type": {
+        "name": "Insulin type"
       },
       "chart_timerange": {
         "name": "Chart time range"
       }
     },
-    "text": {
-      "event_timestamp": {
-        "name": "Event timestamp"
-      },
-      "archive_event_id": {
-        "name": "Archive event ID"
-      }
-    },
     "button": {
       "log_feeding": {
-        "name": "Log feeding"
+        "name": "Save feeding"
       },
       "log_insulin": {
-        "name": "Log insulin"
-      },
-      "archive_event": {
-        "name": "Archive event"
+        "name": "Save insulin"
       }
     }
   }

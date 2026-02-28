@@ -10,7 +10,8 @@
         "data": {
           "pig_name": "Profilname",
           "glucose_sensor": "Dexcom Glukose-Sensor",
-          "trend_sensor": "Dexcom Trend-Sensor"
+          "trend_sensor": "Dexcom Trend-Sensor",
+          "weight_kg": "Gewicht (kg)"
         }
       }
     }
@@ -19,77 +20,63 @@
     "step": {
       "init": {
         "title": "GlucoFarmer Einstellungen",
-        "description": "Insulinprodukte, Fuetterungskategorien und Presets verwalten.",
+        "description": "Profil, Mahlzeiten und Insulintypen verwalten.",
         "menu_options": {
-          "manage_insulin_products": "Insulinprodukte verwalten",
-          "manage_feeding_categories": "Fuetterungskategorien verwalten",
-          "manage_presets": "Presets verwalten",
+          "manage_subject_profile": "Subjekt-Profil (Gewicht, Sensor)",
+          "manage_meals": "Mahlzeiten verwalten",
+          "manage_insulin_types": "Insulintypen verwalten",
           "manage_email_settings": "E-Mail-Einstellungen (Tagesbericht)"
         }
       },
-      "manage_insulin_products": {
-        "title": "Insulinprodukte",
-        "description": "Insulinprodukte fuer dieses Profil hinzufuegen oder entfernen.",
+      "manage_subject_profile": {
+        "title": "Subjekt-Profil",
+        "description": "Gewicht und Sensor-Zuweisung bearbeiten.",
+        "data": {
+          "weight_kg": "Gewicht (kg)",
+          "glucose_sensor": "Glukose-Sensor",
+          "trend_sensor": "Trend-Sensor"
+        }
+      },
+      "manage_meals": {
+        "title": "Mahlzeiten",
+        "description": "Mahlzeit-Definitionen hinzufuegen oder entfernen.",
         "menu_options": {
-          "add_insulin_product": "Insulinprodukt hinzufuegen",
-          "remove_insulin_product": "Insulinprodukt entfernen"
+          "add_meal": "Mahlzeit hinzufuegen",
+          "remove_meal": "Mahlzeit entfernen"
         }
       },
-      "add_insulin_product": {
-        "title": "Insulinprodukt hinzufuegen",
+      "add_meal": {
+        "title": "Mahlzeit hinzufuegen",
         "data": {
-          "name": "Produktname",
-          "category": "Kategorie"
+          "name": "Name",
+          "mode": "BE-Berechnung",
+          "value": "Wert (BE oder BE/kg)"
         }
       },
-      "remove_insulin_product": {
-        "title": "Insulinprodukt entfernen",
+      "remove_meal": {
+        "title": "Mahlzeit entfernen",
         "data": {
-          "product": "Zu entfernendes Produkt"
+          "meal": "Zu entfernende Mahlzeit"
         }
       },
-      "manage_feeding_categories": {
-        "title": "Fuetterungskategorien",
-        "description": "Fuetterungskategorien fuer dieses Profil hinzufuegen oder entfernen.",
+      "manage_insulin_types": {
+        "title": "Insulintypen",
+        "description": "Insulintypen hinzufuegen oder entfernen.",
         "menu_options": {
-          "add_feeding_category": "Fuetterungskategorie hinzufuegen",
-          "remove_feeding_category": "Fuetterungskategorie entfernen"
+          "add_insulin_type": "Insulintyp hinzufuegen",
+          "remove_insulin_type": "Insulintyp entfernen"
         }
       },
-      "add_feeding_category": {
-        "title": "Fuetterungskategorie hinzufuegen",
+      "add_insulin_type": {
+        "title": "Insulintyp hinzufuegen",
         "data": {
-          "category": "Kategoriename"
+          "name": "Typname"
         }
       },
-      "remove_feeding_category": {
-        "title": "Fuetterungskategorie entfernen",
+      "remove_insulin_type": {
+        "title": "Insulintyp entfernen",
         "data": {
-          "category": "Zu entfernende Kategorie"
-        }
-      },
-      "manage_presets": {
-        "title": "Presets",
-        "description": "Schnelleingabe-Presets fuer dieses Profil hinzufuegen oder entfernen.",
-        "menu_options": {
-          "add_preset": "Preset hinzufuegen",
-          "remove_preset": "Preset entfernen"
-        }
-      },
-      "add_preset": {
-        "title": "Preset hinzufuegen",
-        "data": {
-          "name": "Preset-Name",
-          "type": "Typ",
-          "product": "Insulinprodukt",
-          "feeding_category": "Fuetterungskategorie",
-          "amount": "Menge (IE oder BE)"
-        }
-      },
-      "remove_preset": {
-        "title": "Preset entfernen",
-        "data": {
-          "preset": "Zu entfernendes Preset"
+          "type": "Zu entfernender Typ"
         }
       },
       "manage_email_settings": {
@@ -109,9 +96,8 @@
       }
     },
     "abort": {
-      "no_products": "Keine Insulinprodukte zum Entfernen.",
-      "no_categories": "Keine Fuetterungskategorien zum Entfernen.",
-      "no_presets": "Keine Presets zum Entfernen."
+      "no_meals": "Keine Mahlzeiten zum Entfernen.",
+      "no_insulin_types": "Keine Insulintypen zum Entfernen."
     }
   },
   "entity": {
@@ -183,8 +169,8 @@
       "daily_bes_total": {
         "name": "BE gesamt (heute)"
       },
-      "today_events": {
-        "name": "Heutige Ereignisse"
+      "recent_events": {
+        "name": "Letzte Ereignisse (24h)"
       }
     },
     "number": {
@@ -206,41 +192,36 @@
       "data_timeout": {
         "name": "Daten-Timeout"
       },
-      "feeding_amount": {
-        "name": "Fuetterungsmenge"
+      "be_amount": {
+        "name": "BE-Menge"
       },
-      "insulin_amount": {
-        "name": "Insulinmenge"
+      "minutes_ago": {
+        "name": "Vor ___ Minuten"
+      },
+      "insulin_units": {
+        "name": "Insulinmenge (IU)"
       }
     },
     "select": {
-      "feeding_category": {
-        "name": "Fuetterungskategorie"
+      "form_mode": {
+        "name": "Formular"
       },
-      "insulin_product": {
-        "name": "Insulinprodukt"
+      "meal": {
+        "name": "Mahlzeit"
+      },
+      "insulin_type": {
+        "name": "Insulintyp"
       },
       "chart_timerange": {
         "name": "Diagramm-Zeitraum"
       }
     },
-    "text": {
-      "event_timestamp": {
-        "name": "Ereignis-Zeitstempel"
-      },
-      "archive_event_id": {
-        "name": "Ereignis-ID archivieren"
-      }
-    },
     "button": {
       "log_feeding": {
-        "name": "Fuetterung erfassen"
+        "name": "Fuetterung speichern"
       },
       "log_insulin": {
-        "name": "Insulin erfassen"
-      },
-      "archive_event": {
-        "name": "Ereignis archivieren"
+        "name": "Insulin speichern"
       }
     }
   }

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 import uuid
@@ -154,6 +154,17 @@ class GlucoFarmerStore:
         """Get today's events for a subject."""
         today = datetime.now().strftime("%Y-%m-%d")
         return self.get_events_for_date(subject_name, today, event_type)
+
+    @callback
+    def get_events_since(
+        self,
+        subject_name: str,
+        hours: int = 24,
+        event_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get events for a subject from the last N hours (rolling window)."""
+        cutoff = datetime.now() - timedelta(hours=hours)
+        return self.get_events_for_subject(subject_name, event_type=event_type, since=cutoff)
 
     @callback
     def get_all_events(self) -> list[dict[str, Any]]:

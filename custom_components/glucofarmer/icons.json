@@ -20,6 +20,7 @@
         "default": "mdi:check-circle",
         "state": {
           "normal": "mdi:check-circle",
+          "very_low": "mdi:arrow-down-circle",
           "low": "mdi:arrow-down-circle",
           "high": "mdi:arrow-up-circle",
           "very_high": "mdi:alert-circle",
@@ -33,8 +34,11 @@
       "time_critical_low_pct": {
         "default": "mdi:alert-circle"
       },
-      "time_low_pct": {
+      "time_very_low_pct": {
         "default": "mdi:arrow-down-bold-circle"
+      },
+      "time_low_pct": {
+        "default": "mdi:arrow-down-bold-circle-outline"
       },
       "time_in_range_pct": {
         "default": "mdi:target"
@@ -48,56 +52,67 @@
       "data_completeness_today": {
         "default": "mdi:database-check"
       },
+      "data_completeness_range": {
+        "default": "mdi:database-check-outline"
+      },
+      "link_status": {
+        "default": "mdi:wifi",
+        "state": {
+          "ok": "mdi:wifi",
+          "lost": "mdi:wifi-off"
+        }
+      },
       "daily_insulin_total": {
         "default": "mdi:needle"
       },
       "daily_bes_total": {
         "default": "mdi:food-apple"
       },
-      "today_events": {
+      "recent_events": {
         "default": "mdi:clipboard-list"
       }
     },
     "number": {
-      "low_threshold": {
-        "default": "mdi:arrow-down-bold"
-      },
-      "high_threshold": {
-        "default": "mdi:arrow-up-bold"
-      },
       "critical_low_threshold": {
         "default": "mdi:alert"
       },
+      "very_low_threshold": {
+        "default": "mdi:arrow-down-bold"
+      },
+      "low_threshold": {
+        "default": "mdi:arrow-down"
+      },
+      "high_threshold": {
+        "default": "mdi:arrow-up"
+      },
       "very_high_threshold": {
-        "default": "mdi:alert-outline"
+        "default": "mdi:arrow-up-bold"
       },
       "data_timeout": {
         "default": "mdi:timer-alert-outline"
       },
-      "feeding_amount": {
+      "be_amount": {
         "default": "mdi:food-apple"
       },
-      "insulin_amount": {
+      "minutes_ago": {
+        "default": "mdi:clock-minus-outline"
+      },
+      "insulin_units": {
         "default": "mdi:needle"
       }
     },
     "select": {
-      "feeding_category": {
-        "default": "mdi:tag"
+      "form_mode": {
+        "default": "mdi:form-select"
       },
-      "insulin_product": {
+      "meal": {
+        "default": "mdi:food-variant"
+      },
+      "insulin_type": {
         "default": "mdi:medical-bag"
       },
       "chart_timerange": {
         "default": "mdi:clock-time-eight-outline"
-      }
-    },
-    "text": {
-      "event_timestamp": {
-        "default": "mdi:calendar-clock"
-      },
-      "archive_event_id": {
-        "default": "mdi:identifier"
       }
     },
     "button": {
@@ -106,9 +121,6 @@
       },
       "log_insulin": {
         "default": "mdi:needle"
-      },
-      "archive_event": {
-        "default": "mdi:archive-arrow-down"
       }
     }
   }

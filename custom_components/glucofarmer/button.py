@@ -1,22 +1,16 @@
-"""Button platform for GlucoFarmer presets and actions."""
+"""Button platform for GlucoFarmer log actions."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from datetime import datetime, timedelta
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import (
-    CONF_SUBJECT_NAME,
-    CONF_PRESETS,
-    DOMAIN,
-    PRESET_TYPE_FEEDING,
-    PRESET_TYPE_INSULIN,
-)
+from .const import CONF_SUBJECT_NAME, DOMAIN
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
 from .store import GlucoFarmerStore
 
@@ -33,98 +27,23 @@ async def async_setup_entry(
     subject_name = entry.data[CONF_SUBJECT_NAME]
     store: GlucoFarmerStore = hass.data[DOMAIN]["store"]
 
-    entities: list[ButtonEntity] = []
-
-    # Preset buttons
-    presets: list[dict[str, Any]] = entry.options.get(CONF_PRESETS, [])
-    for preset in presets:
-        entities.append(
-            GlucoFarmerPresetButton(
-                coordinator, store, preset, subject_name, entry.entry_id
-            )
-        )
-
-    # Action buttons
-    entities.extend([
+    async_add_entities([
         GlucoFarmerLogFeedingButton(coordinator, subject_name, entry.entry_id, store),
         GlucoFarmerLogInsulinButton(coordinator, subject_name, entry.entry_id, store),
-        GlucoFarmerArchiveEventButton(coordinator, subject_name, entry.entry_id, store),
     ])
 
-    async_add_entities(entities)
 
-
-class GlucoFarmerPresetButton(ButtonEntity):
-    """Button entity that logs a preset with one press."""
-
-    _attr_has_entity_name = False
-    _attr_should_poll = False
-
-    def __init__(
-        self,
-        coordinator: GlucoFarmerCoordinator,
-        store: GlucoFarmerStore,
-        preset: dict[str, Any],
-        subject_name: str,
-        entry_id: str,
-    ) -> None:
-        """Initialize the preset button."""
-        self._coordinator = coordinator
-        self._store = store
-        self._preset = preset
-        self._subject_name = subject_name
-        preset_slug = preset["name"].lower().replace(" ", "_")
-        self._attr_unique_id = f"{entry_id}_preset_{preset_slug}"
-        self._attr_name = preset["name"]
-        self._attr_icon = (
-            "mdi:needle" if preset["type"] == PRESET_TYPE_INSULIN else "mdi:food-apple"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry_id)},
-            name=subject_name,
-            manufacturer="GlucoFarmer",
-            model="Subject CGM Monitor",
-        )
-
-    async def async_press(self) -> None:
-        """Handle button press: log the preset event."""
-        preset_type = self._preset["type"]
-        amount = self._preset.get("amount", 0)
-
-        if preset_type == PRESET_TYPE_INSULIN:
-            product = self._preset.get("product", "")
-            await self._store.async_log_insulin(
-                subject_name=self._subject_name,
-                product=product,
-                amount=amount,
-            )
-            _LOGGER.info(
-                "Preset '%s' executed: %s %s IU for %s",
-                self._preset["name"],
-                product,
-                amount,
-                self._subject_name,
-            )
-        elif preset_type == PRESET_TYPE_FEEDING:
-            category = self._preset.get("category", "other")
-            await self._store.async_log_feeding(
-                subject_name=self._subject_name,
-                amount=amount,
-                category=category,
-            )
-            _LOGGER.info(
-                "Preset '%s' executed: %s BE (%s) for %s",
-                self._preset["name"],
-                amount,
-                category,
-                self._subject_name,
-            )
-
-        await self._coordinator.async_refresh()
+def _device_info(entry_id: str, subject_name: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry_id)},
+        name=subject_name,
+        manufacturer="GlucoFarmer",
+        model="Subject CGM Monitor",
+    )
 
 
 class GlucoFarmerLogFeedingButton(ButtonEntity):
-    """Button that logs a feeding event from current input values."""
+    """Logs a feeding event from current form values, then resets the form."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
@@ -138,38 +57,46 @@ class GlucoFarmerLogFeedingButton(ButtonEntity):
         entry_id: str,
         store: GlucoFarmerStore,
     ) -> None:
-        """Initialize the log feeding button."""
         self._coordinator = coordinator
         self._subject_name = subject_name
         self._store = store
         self._attr_unique_id = f"{entry_id}_log_feeding"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry_id)},
-            name=subject_name,
-            manufacturer="GlucoFarmer",
-            model="Subject CGM Monitor",
-        )
+        self._attr_device_info = _device_info(entry_id, subject_name)
 
     async def async_press(self) -> None:
-        """Handle button press - log feeding from input values."""
-        amount = self._coordinator.feeding_amount
-        category = self._coordinator.feeding_category or "other"
-        timestamp = self._coordinator.event_timestamp or None
+        """Log feeding event and reset form."""
+        c = self._coordinator
+        amount = c.be_amount
+        meal_type = c.meal_selection
+        minutes_ago = c.minutes_ago
+        timestamp = (datetime.now() - timedelta(minutes=minutes_ago)).isoformat()
 
         await self._store.async_log_feeding(
             subject_name=self._subject_name,
             amount=amount,
-            category=category,
+            category=meal_type,
             timestamp=timestamp,
         )
         _LOGGER.info(
-            "Logged feeding: %s BE (%s) for %s", amount, category, self._subject_name
+            "Logged feeding: %.1f BE (%s) for %s (-%d min)",
+            amount, meal_type, self._subject_name, minutes_ago,
         )
-        await self._coordinator.async_refresh()
+
+        # Reset form entities
+        if c.be_amount_entity is not None:
+            c.be_amount_entity.set_suggested_value(0.0)
+        if c.minutes_ago_entity is not None:
+            c.minutes_ago_entity.reset()
+        if c.meal_entity is not None:
+            await c.meal_entity.async_select_option("Any")
+        if c.form_mode_entity is not None:
+            await c.form_mode_entity.async_select_option("—")
+
+        await c.async_request_refresh()
 
 
 class GlucoFarmerLogInsulinButton(ButtonEntity):
-    """Button that logs an insulin event from current input values."""
+    """Logs an insulin event from current form values, then resets the form."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
@@ -183,74 +110,37 @@ class GlucoFarmerLogInsulinButton(ButtonEntity):
         entry_id: str,
         store: GlucoFarmerStore,
     ) -> None:
-        """Initialize the log insulin button."""
         self._coordinator = coordinator
         self._subject_name = subject_name
         self._store = store
         self._attr_unique_id = f"{entry_id}_log_insulin"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry_id)},
-            name=subject_name,
-            manufacturer="GlucoFarmer",
-            model="Subject CGM Monitor",
-        )
+        self._attr_device_info = _device_info(entry_id, subject_name)
 
     async def async_press(self) -> None:
-        """Handle button press - log insulin from input values."""
-        amount = self._coordinator.insulin_amount
-        product = self._coordinator.insulin_product or ""
-        timestamp = self._coordinator.event_timestamp or None
+        """Log insulin event and reset form."""
+        c = self._coordinator
+        amount = c.insulin_units
+        insulin_type = c.insulin_type_selection
+        minutes_ago = c.minutes_ago
+        timestamp = (datetime.now() - timedelta(minutes=minutes_ago)).isoformat()
 
         await self._store.async_log_insulin(
             subject_name=self._subject_name,
-            product=product,
+            product=insulin_type,
             amount=amount,
             timestamp=timestamp,
         )
         _LOGGER.info(
-            "Logged insulin: %s IU (%s) for %s", amount, product, self._subject_name
-        )
-        await self._coordinator.async_refresh()
-
-
-class GlucoFarmerArchiveEventButton(ButtonEntity):
-    """Button that archives an event by ID."""
-
-    _attr_has_entity_name = True
-    _attr_should_poll = False
-    _attr_translation_key = "archive_event"
-    _attr_icon = "mdi:archive-arrow-down"
-
-    def __init__(
-        self,
-        coordinator: GlucoFarmerCoordinator,
-        subject_name: str,
-        entry_id: str,
-        store: GlucoFarmerStore,
-    ) -> None:
-        """Initialize the archive event button."""
-        self._coordinator = coordinator
-        self._subject_name = subject_name
-        self._store = store
-        self._attr_unique_id = f"{entry_id}_archive_event"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry_id)},
-            name=subject_name,
-            manufacturer="GlucoFarmer",
-            model="Subject CGM Monitor",
+            "Logged insulin: %.1f IU (%s) for %s (-%d min)",
+            amount, insulin_type, self._subject_name, minutes_ago,
         )
 
-    async def async_press(self) -> None:
-        """Handle button press - archive the event."""
-        event_id = self._coordinator.archive_event_id
-        if not event_id:
-            _LOGGER.warning("No event ID provided for archiving")
-            return
+        # Reset form entities
+        if c.insulin_units_entity is not None:
+            c.insulin_units_entity.reset()
+        if c.minutes_ago_entity is not None:
+            c.minutes_ago_entity.reset()
+        if c.form_mode_entity is not None:
+            await c.form_mode_entity.async_select_option("—")
 
-        deleted = await self._store.async_delete_event(event_id)
-        if deleted:
-            _LOGGER.info("Archived event %s", event_id)
-            self._coordinator.archive_event_id = ""
-            await self._coordinator.async_refresh()
-        else:
-            _LOGGER.warning("Event %s not found or already archived", event_id)
+        await c.async_request_refresh()

@@ -15,7 +15,7 @@ from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_SUBJECT_NAME, CONF_PRESETS, DOMAIN
+from .const import CONF_SUBJECT_NAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -359,8 +359,10 @@ def _build_overview_view(
 
 def _build_input_view(
     subjects: list[dict[str, Any]],
+    thresholds: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build the input view with forms, presets, and event management."""
+    """Build the input view: mini-graph, status, form buttons, conditional forms, events."""
+    yaxis_max = _yaxis_max(thresholds)
     cards: list[dict[str, Any]] = []
 
     for subject in subjects:
@@ -370,8 +372,36 @@ def _build_input_view(
             {"type": "markdown", "content": f"## {subject_name}"},
         ]
 
-        # Current status as markdown template (bold for critical values)
-        glucose_entity = ents.get("glucose_value", "")
+        # 1. Mini graph: last 3h, threshold lines only (no fill)
+        glucose_entity = ents.get("glucose_value")
+        if glucose_entity:
+            subject_cards.append({
+                "type": "custom:apexcharts-card",
+                "header": {"show": False},
+                "graph_span": "3h",
+                "apex_config": {
+                    "chart": {"height": 150, "toolbar": {"show": False}},
+                    "legend": {"show": False},
+                    "yaxis": {
+                        "min": 0,
+                        "max": yaxis_max,
+                        "tickAmount": yaxis_max // 50,
+                        "forceNiceScale": False,
+                        "decimalsInFloat": 0,
+                    },
+                    "annotations": {
+                        "yaxis": _zone_annotations_lines(thresholds),
+                    },
+                },
+                "series": [{
+                    "entity": glucose_entity,
+                    "name": subject_name,
+                    "stroke_width": 2,
+                    "color": _SUBJECT_COLORS[0],
+                }],
+            })
+
+        # 2. Status line
         status_entity = ents.get("glucose_status", "")
         trend_entity = ents.get("glucose_trend", "")
         insulin_entity = ents.get("daily_insulin_total", "")
@@ -397,123 +427,115 @@ def _build_input_view(
                 ),
             })
 
-        # Preset buttons (quick input)
-        preset_keys = sorted(k for k in ents if k.startswith("preset_"))
-        if preset_keys:
+        # 3. Two form-toggle buttons
+        form_mode_entity = ents.get("form_mode")
+        if form_mode_entity:
             subject_cards.append({
-                "type": "markdown",
-                "content": "### Schnelleingabe (Presets)",
+                "type": "horizontal-stack",
+                "cards": [
+                    {
+                        "type": "button",
+                        "name": "🍎 Fuetterung",
+                        "tap_action": {
+                            "action": "call-service",
+                            "service": "select.select_option",
+                            "service_data": {
+                                "entity_id": form_mode_entity,
+                                "option": "feeding",
+                            },
+                        },
+                        "show_state": False,
+                    },
+                    {
+                        "type": "button",
+                        "name": "💉 Insulin",
+                        "tap_action": {
+                            "action": "call-service",
+                            "service": "select.select_option",
+                            "service_data": {
+                                "entity_id": form_mode_entity,
+                                "option": "insulin",
+                            },
+                        },
+                        "show_state": False,
+                    },
+                ],
             })
+
+        # 4. Conditional: feeding form
+        meal_entity = ents.get("meal")
+        be_entity = ents.get("be_amount")
+        minutes_entity = ents.get("minutes_ago")
+        log_feeding_entity = ents.get("log_feeding")
+
+        if form_mode_entity and meal_entity and be_entity and minutes_entity:
+            feeding_form_entities = []
+            feeding_form_entities.append({"entity": meal_entity, "name": "Mahlzeit"})
+            feeding_form_entities.append({"entity": be_entity, "name": "BE"})
+            feeding_form_entities.append({"entity": minutes_entity, "name": "Vor ___ Minuten"})
+            if log_feeding_entity:
+                feeding_form_entities.append({
+                    "entity": log_feeding_entity,
+                    "name": "Speichern",
+                    "icon": "mdi:check",
+                })
             subject_cards.append({
-                "type": "markdown",
-                "content": (
-                    "Presets werden unter **Einstellungen > Geraete & Dienste > "
-                    "GlucoFarmer > Konfigurieren** verwaltet."
-                ),
+                "type": "conditional",
+                "conditions": [
+                    {"condition": "state", "entity": form_mode_entity, "state": "feeding"},
+                ],
+                "card": {
+                    "type": "entities",
+                    "title": "Fuetterung",
+                    "entities": feeding_form_entities,
+                },
             })
 
-            button_cards = []
-            for key in preset_keys:
-                button_cards.append({
-                    "type": "button",
-                    "entity": ents[key],
-                    "tap_action": {"action": "toggle"},
-                    "show_state": False,
-                    "show_name": True,
+        # 5. Conditional: insulin form
+        insulin_type_entity = ents.get("insulin_type")
+        insulin_units_entity = ents.get("insulin_units")
+        log_insulin_entity = ents.get("log_insulin")
+
+        if form_mode_entity and insulin_type_entity and insulin_units_entity:
+            insulin_form_entities = []
+            insulin_form_entities.append({"entity": insulin_type_entity, "name": "Typ"})
+            insulin_form_entities.append({"entity": insulin_units_entity, "name": "IU"})
+            if minutes_entity:
+                insulin_form_entities.append({"entity": minutes_entity, "name": "Vor ___ Minuten"})
+            if log_insulin_entity:
+                insulin_form_entities.append({
+                    "entity": log_insulin_entity,
+                    "name": "Speichern",
+                    "icon": "mdi:check",
                 })
+            subject_cards.append({
+                "type": "conditional",
+                "conditions": [
+                    {"condition": "state", "entity": form_mode_entity, "state": "insulin"},
+                ],
+                "card": {
+                    "type": "entities",
+                    "title": "Insulin",
+                    "entities": insulin_form_entities,
+                },
+            })
 
-            for i in range(0, len(button_cards), 3):
-                subject_cards.append({
-                    "type": "horizontal-stack",
-                    "cards": button_cards[i:i + 3],
-                })
-
-        # Feeding form
-        feeding_entities = []
-        for key, label in [
-            ("feeding_amount", "Menge (BE)"),
-            ("feeding_category", "Kategorie"),
-            ("event_timestamp", "Zeitstempel (leer = jetzt)"),
-        ]:
-            if key in ents:
-                feeding_entities.append({"entity": ents[key], "name": label})
-
-        if feeding_entities:
-            subject_cards.append({"type": "markdown", "content": "### Fuetterung loggen"})
-            subject_cards.append({"type": "entities", "entities": feeding_entities})
-            if "log_feeding" in ents:
-                subject_cards.append({
-                    "type": "button",
-                    "entity": ents["log_feeding"],
-                    "name": "Fuetterung loggen",
-                    "icon": "mdi:food-apple-outline",
-                    "tap_action": {"action": "toggle"},
-                    "show_state": False,
-                })
-
-        # Insulin form
-        insulin_entities = []
-        for key, label in [
-            ("insulin_amount", "Menge (IU)"),
-            ("insulin_product", "Produkt"),
-            ("event_timestamp", "Zeitstempel (leer = jetzt)"),
-        ]:
-            if key in ents:
-                insulin_entities.append({"entity": ents[key], "name": label})
-
-        if insulin_entities:
-            subject_cards.append({"type": "markdown", "content": "### Insulin loggen"})
-            subject_cards.append({"type": "entities", "entities": insulin_entities})
-            if "log_insulin" in ents:
-                subject_cards.append({
-                    "type": "button",
-                    "entity": ents["log_insulin"],
-                    "name": "Insulin loggen",
-                    "icon": "mdi:needle",
-                    "tap_action": {"action": "toggle"},
-                    "show_state": False,
-                })
-
-        # Today's events list + archive
-        events_entity = ents.get("today_events")
+        # 6. Events (last 24h) -- markdown list, newest first
+        events_entity = ents.get("recent_events")
         if events_entity:
             subject_cards.append({
                 "type": "markdown",
                 "content": (
-                    "### Letzte Eintraege\n\n"
-                    f"{{% set events = state_attr('{events_entity}', 'events') or [] %}}"
-                    "{% if events | length > 0 %}"
-                    "| Zeit | Typ | Menge | ID |\n"
-                    "|------|-----|-------|----|\n"
-                    "{% for e in events %}"
-                    "| {{ e.timestamp[11:16] if e.timestamp | length > 16 else e.timestamp }}"
-                    " | {{ e.type }}"
-                    " | {{ e.amount }} {{ 'IU' if e.type == 'insulin' else 'BE' }}"
-                    " | `{{ e.id[:8] }}` |\n"
+                    "**Letzte Eintraege (24h)**\n\n"
+                    f"{{% set evts = state_attr('{events_entity}', 'events') or [] %}}"
+                    "{% if evts | length > 0 %}"
+                    "{% for e in evts %}"
+                    "{{ e.label }}\n\n"
                     "{% endfor %}"
                     "{% else %}"
-                    "Keine Eintraege heute."
+                    "_Keine Eintraege in den letzten 24h._"
                     "{% endif %}"
                 ),
-            })
-
-        # Archive controls
-        archive_entities = []
-        if "archive_event_id" in ents:
-            archive_entities.append({
-                "entity": ents["archive_event_id"],
-                "name": "Event-ID zum Archivieren",
-            })
-        if archive_entities:
-            subject_cards.append({"type": "entities", "entities": archive_entities})
-        if "archive_event" in ents:
-            subject_cards.append({
-                "type": "button",
-                "entity": ents["archive_event"],
-                "name": "Event archivieren",
-                "icon": "mdi:archive-arrow-down",
-                "tap_action": {"action": "toggle"},
-                "show_state": False,
             })
 
         cards.append({"type": "vertical-stack", "cards": subject_cards})
@@ -707,9 +729,10 @@ def _build_settings_view(
             "den **Options Flow** der Integration verwaltet:\n\n"
             "**Einstellungen > Geraete & Dienste > GlucoFarmer > Konfigurieren**\n\n"
             "Dort kannst du:\n\n"
-            "- Insulin-Produkte hinzufuegen/entfernen\n\n"
-            "- Fuetterungskategorien hinzufuegen/entfernen\n\n"
-            "- Presets erstellen/loeschen (erscheinen als Buttons auf der Eingabe-Seite)"
+            "- Subjekt-Profil bearbeiten (Gewicht, Sensor-Zuweisung)\n\n"
+            "- Mahlzeiten hinzufuegen/entfernen (fixer BE-Wert oder BE/kg)\n\n"
+            "- Insulin-Typen hinzufuegen/entfernen\n\n"
+            "- E-Mail-Einstellungen fuer den Tagesbericht"
         ),
     })
 
@@ -745,7 +768,6 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
             "name": entry.data[CONF_SUBJECT_NAME],
             "entry_id": entry.entry_id,
             "entities": entities,
-            "presets": entry.options.get(CONF_PRESETS, []),
         })
 
     if not subjects:
@@ -755,7 +777,7 @@ async def async_update_dashboard(hass: HomeAssistant) -> None:
     config = {
         "views": [
             _build_overview_view(subjects, thresholds),
-            _build_input_view(subjects),
+            _build_input_view(subjects, thresholds),
             _build_stats_view(subjects, thresholds),
             _build_settings_view(subjects),
         ],

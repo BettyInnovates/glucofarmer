@@ -16,39 +16,24 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
-    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     TextSelector,
-    TextSelectorConfig,
-    TextSelectorType,
 )
 
 from .const import (
-    CONF_FEEDING_CATEGORIES,
     CONF_GLUCOSE_SENSOR,
-    CONF_INSULIN_PRODUCTS,
+    CONF_INSULIN_TYPES,
+    CONF_MEALS,
     CONF_SUBJECT_NAME,
-    CONF_PRESETS,
-    CONF_SMTP_ENABLED,
-    CONF_SMTP_ENCRYPTION,
-    CONF_SMTP_HOST,
-    CONF_SMTP_PASSWORD,
-    CONF_SMTP_PORT,
-    CONF_SMTP_RECIPIENTS,
-    CONF_SMTP_SENDER,
-    CONF_SMTP_SENDER_NAME,
-    CONF_SMTP_USERNAME,
+    CONF_SUBJECT_WEIGHT_KG,
     CONF_TREND_SENSOR,
-    DEFAULT_FEEDING_CATEGORIES,
-    DEFAULT_INSULIN_PRODUCTS,
+    DEFAULT_INSULIN_TYPES,
+    DEFAULT_MEALS,
     DOMAIN,
-    INSULIN_CATEGORY_EXPERIMENTAL,
-    INSULIN_CATEGORY_LONG,
-    INSULIN_CATEGORY_SHORT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,7 +47,6 @@ def _get_dexcom_sensors(hass, device_class_filter: str | None = None) -> dict[st
     for entity in registry.entities.values():
         if entity.domain != "sensor":
             continue
-        # Include Dexcom sensors and any sensor with glucose in name
         if entity.platform == "dexcom" or "glucose" in (entity.entity_id or ""):
             state = hass.states.get(entity.entity_id)
             name = (
@@ -72,8 +56,6 @@ def _get_dexcom_sensors(hass, device_class_filter: str | None = None) -> dict[st
             )
             sensors[entity.entity_id] = name
 
-    # If no Dexcom sensors found, also include all sensor entities
-    # so the user can pick any sensor
     if not sensors:
         for state in hass.states.async_all("sensor"):
             name = state.attributes.get("friendly_name", state.entity_id)
@@ -103,8 +85,6 @@ class GlucoFarmerConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             subject_name = user_input[CONF_SUBJECT_NAME]
-
-            # Check for duplicate subject name
             await self.async_set_unique_id(subject_name.lower().replace(" ", "_"))
             self._abort_if_unique_id_configured()
 
@@ -116,9 +96,9 @@ class GlucoFarmerConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_TREND_SENSOR: user_input[CONF_TREND_SENSOR],
                 },
                 options={
-                    CONF_INSULIN_PRODUCTS: DEFAULT_INSULIN_PRODUCTS,
-                    CONF_FEEDING_CATEGORIES: DEFAULT_FEEDING_CATEGORIES,
-                    CONF_PRESETS: [],
+                    CONF_SUBJECT_WEIGHT_KG: user_input[CONF_SUBJECT_WEIGHT_KG],
+                    CONF_MEALS: DEFAULT_MEALS,
+                    CONF_INSULIN_TYPES: DEFAULT_INSULIN_TYPES,
                 },
             )
 
@@ -126,13 +106,14 @@ class GlucoFarmerConfigFlow(ConfigFlow, domain=DOMAIN):
         if not sensors:
             sensors = {"": "No sensors found"}
 
-        sensor_list = list(sensors.keys())
-
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_SUBJECT_NAME): str,
                 vol.Required(CONF_GLUCOSE_SENSOR): vol.In(sensors),
                 vol.Required(CONF_TREND_SENSOR): vol.In(sensors),
+                vol.Required(CONF_SUBJECT_WEIGHT_KG, default=5.0): NumberSelector(
+                    NumberSelectorConfig(min=0.1, max=200, step=0.1, mode=NumberSelectorMode.BOX)
+                ),
             }
         )
 
@@ -144,7 +125,7 @@ class GlucoFarmerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class GlucoFarmerOptionsFlow(OptionsFlow):
-    """Handle options flow for GlucoFarmer (global catalogs + presets)."""
+    """Handle options flow for GlucoFarmer."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -153,214 +134,184 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=[
-                "manage_insulin_products",
-                "manage_feeding_categories",
-                "manage_presets",
+                "manage_subject_profile",
+                "manage_meals",
+                "manage_insulin_types",
                 "manage_email_settings",
             ],
         )
 
-    # --- Insulin products ---
+    # --- Subject profile (weight + sensors) ---
 
-    async def async_step_manage_insulin_products(
+    async def async_step_manage_subject_profile(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage insulin products."""
-        return self.async_show_menu(
-            step_id="manage_insulin_products",
-            menu_options=["add_insulin_product", "remove_insulin_product"],
+        """Edit subject profile: weight and sensor assignments."""
+        if user_input is not None:
+            new_options = dict(self.config_entry.options)
+            new_options[CONF_SUBJECT_WEIGHT_KG] = user_input[CONF_SUBJECT_WEIGHT_KG]
+            # Sensor changes update config entry data -- store in options as overrides
+            new_data = dict(self.config_entry.data)
+            new_data[CONF_GLUCOSE_SENSOR] = user_input[CONF_GLUCOSE_SENSOR]
+            new_data[CONF_TREND_SENSOR] = user_input[CONF_TREND_SENSOR]
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, data=new_data
+            )
+            return self.async_create_entry(title="", data=new_options)
+
+        sensors = _get_dexcom_sensors(self.hass)
+        if not sensors:
+            sensors = {"": "No sensors found"}
+
+        cur = self.config_entry.options
+        cur_data = self.config_entry.data
+        return self.async_show_form(
+            step_id="manage_subject_profile",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SUBJECT_WEIGHT_KG,
+                        default=cur.get(CONF_SUBJECT_WEIGHT_KG, 5.0),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0.1, max=200, step=0.1, mode=NumberSelectorMode.BOX
+                        )
+                    ),
+                    vol.Required(
+                        CONF_GLUCOSE_SENSOR,
+                        default=cur_data.get(CONF_GLUCOSE_SENSOR, ""),
+                    ): SelectSelector(SelectSelectorConfig(options=list(sensors.keys()))),
+                    vol.Required(
+                        CONF_TREND_SENSOR,
+                        default=cur_data.get(CONF_TREND_SENSOR, ""),
+                    ): SelectSelector(SelectSelectorConfig(options=list(sensors.keys()))),
+                }
+            ),
         )
 
-    async def async_step_add_insulin_product(
+    # --- Meals ---
+
+    async def async_step_manage_meals(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Add a new insulin product."""
+        """Manage meal definitions."""
+        return self.async_show_menu(
+            step_id="manage_meals",
+            menu_options=["add_meal", "remove_meal"],
+        )
+
+    async def async_step_add_meal(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a meal definition (fixed BE or per-kg)."""
         if user_input is not None:
-            products = list(
-                self.config_entry.options.get(
-                    CONF_INSULIN_PRODUCTS, DEFAULT_INSULIN_PRODUCTS
-                )
-            )
-            products.append(
-                {
-                    "name": user_input["name"],
-                    "category": user_input["category"],
-                }
-            )
+            meals = list(self.config_entry.options.get(CONF_MEALS, []))
+            meal: dict[str, Any] = {"name": user_input["name"]}
+            if user_input["mode"] == "per_kg":
+                meal["be_per_kg"] = float(user_input["value"])
+            else:
+                meal["amount"] = float(user_input["value"])
+            meals.append(meal)
             new_options = dict(self.config_entry.options)
-            new_options[CONF_INSULIN_PRODUCTS] = products
+            new_options[CONF_MEALS] = meals
             return self.async_create_entry(title="", data=new_options)
 
         return self.async_show_form(
-            step_id="add_insulin_product",
+            step_id="add_meal",
             data_schema=vol.Schema(
                 {
-                    vol.Required("name"): str,
-                    vol.Required("category"): vol.In(
-                        {
-                            INSULIN_CATEGORY_SHORT: "Short-acting",
-                            INSULIN_CATEGORY_LONG: "Long-acting",
-                            INSULIN_CATEGORY_EXPERIMENTAL: "Experimental",
-                        }
+                    vol.Required("name"): TextSelector(),
+                    vol.Required("mode"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "fixed", "label": "Fixed BE value"},
+                                {"value": "per_kg", "label": "BE per kg (weight-based)"},
+                            ]
+                        )
+                    ),
+                    vol.Required("value", default=1.0): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0, max=50, step=0.1, mode=NumberSelectorMode.BOX
+                        )
                     ),
                 }
             ),
         )
 
-    async def async_step_remove_insulin_product(
+    async def async_step_remove_meal(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Remove an insulin product."""
-        products = list(
-            self.config_entry.options.get(
-                CONF_INSULIN_PRODUCTS, DEFAULT_INSULIN_PRODUCTS
-            )
-        )
+        """Remove a meal definition."""
+        meals = list(self.config_entry.options.get(CONF_MEALS, []))
 
         if user_input is not None:
-            name_to_remove = user_input["product"]
-            products = [p for p in products if p["name"] != name_to_remove]
+            name_to_remove = user_input["meal"]
+            meals = [m for m in meals if m["name"] != name_to_remove]
             new_options = dict(self.config_entry.options)
-            new_options[CONF_INSULIN_PRODUCTS] = products
+            new_options[CONF_MEALS] = meals
             return self.async_create_entry(title="", data=new_options)
 
-        product_names = {p["name"]: p["name"] for p in products}
-        if not product_names:
-            return self.async_abort(reason="no_products")
+        meal_names = {m["name"]: m["name"] for m in meals}
+        if not meal_names:
+            return self.async_abort(reason="no_meals")
 
         return self.async_show_form(
-            step_id="remove_insulin_product",
-            data_schema=vol.Schema(
-                {vol.Required("product"): vol.In(product_names)}
-            ),
+            step_id="remove_meal",
+            data_schema=vol.Schema({vol.Required("meal"): vol.In(meal_names)}),
         )
 
-    # --- Feeding categories ---
+    # --- Insulin types ---
 
-    async def async_step_manage_feeding_categories(
+    async def async_step_manage_insulin_types(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage feeding categories."""
+        """Manage insulin type names."""
         return self.async_show_menu(
-            step_id="manage_feeding_categories",
-            menu_options=["add_feeding_category", "remove_feeding_category"],
+            step_id="manage_insulin_types",
+            menu_options=["add_insulin_type", "remove_insulin_type"],
         )
 
-    async def async_step_add_feeding_category(
+    async def async_step_add_insulin_type(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Add a new feeding category."""
+        """Add an insulin type."""
         if user_input is not None:
-            categories = list(
-                self.config_entry.options.get(
-                    CONF_FEEDING_CATEGORIES, DEFAULT_FEEDING_CATEGORIES
-                )
+            types = list(
+                self.config_entry.options.get(CONF_INSULIN_TYPES, DEFAULT_INSULIN_TYPES)
             )
-            categories.append(user_input["category"])
+            new_type = user_input["name"].strip()
+            if new_type and new_type not in types:
+                types.append(new_type)
             new_options = dict(self.config_entry.options)
-            new_options[CONF_FEEDING_CATEGORIES] = categories
+            new_options[CONF_INSULIN_TYPES] = types
             return self.async_create_entry(title="", data=new_options)
 
         return self.async_show_form(
-            step_id="add_feeding_category",
-            data_schema=vol.Schema({vol.Required("category"): str}),
+            step_id="add_insulin_type",
+            data_schema=vol.Schema({vol.Required("name"): TextSelector()}),
         )
 
-    async def async_step_remove_feeding_category(
+    async def async_step_remove_insulin_type(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Remove a feeding category."""
-        categories = list(
-            self.config_entry.options.get(
-                CONF_FEEDING_CATEGORIES, DEFAULT_FEEDING_CATEGORIES
-            )
+        """Remove an insulin type."""
+        types = list(
+            self.config_entry.options.get(CONF_INSULIN_TYPES, DEFAULT_INSULIN_TYPES)
         )
 
         if user_input is not None:
-            categories.remove(user_input["category"])
+            types = [t for t in types if t != user_input["type"]]
             new_options = dict(self.config_entry.options)
-            new_options[CONF_FEEDING_CATEGORIES] = categories
+            new_options[CONF_INSULIN_TYPES] = types
             return self.async_create_entry(title="", data=new_options)
 
-        cat_options = {c: c for c in categories}
-        if not cat_options:
-            return self.async_abort(reason="no_categories")
+        type_options = {t: t for t in types}
+        if not type_options:
+            return self.async_abort(reason="no_insulin_types")
 
         return self.async_show_form(
-            step_id="remove_feeding_category",
-            data_schema=vol.Schema(
-                {vol.Required("category"): vol.In(cat_options)}
-            ),
-        )
-
-    # --- Presets ---
-
-    async def async_step_manage_presets(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Manage presets."""
-        return self.async_show_menu(
-            step_id="manage_presets",
-            menu_options=["add_preset", "remove_preset"],
-        )
-
-    async def async_step_add_preset(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Add a new preset."""
-        if user_input is not None:
-            presets = list(self.config_entry.options.get(CONF_PRESETS, []))
-            preset: dict[str, Any] = {
-                "name": user_input["name"],
-                "type": user_input["type"],
-            }
-            if user_input["type"] == "insulin":
-                preset["product"] = user_input.get("product", "")
-                preset["amount"] = user_input.get("amount", 0)
-            else:
-                preset["category"] = user_input.get("feeding_category", "")
-                preset["amount"] = user_input.get("amount", 0)
-            presets.append(preset)
-            new_options = dict(self.config_entry.options)
-            new_options[CONF_PRESETS] = presets
-            return self.async_create_entry(title="", data=new_options)
-
-        products = self.config_entry.options.get(
-            CONF_INSULIN_PRODUCTS, DEFAULT_INSULIN_PRODUCTS
-        )
-        categories = self.config_entry.options.get(
-            CONF_FEEDING_CATEGORIES, DEFAULT_FEEDING_CATEGORIES
-        )
-
-        product_names = [p["name"] for p in products]
-        cat_options = list(categories)
-
-        schema_dict: dict = {
-            vol.Required("name"): TextSelector(),
-            vol.Required("type"): SelectSelector(
-                SelectSelectorConfig(
-                    options=[
-                        {"value": "insulin", "label": "Insulin"},
-                        {"value": "feeding", "label": "Feeding"},
-                    ]
-                )
-            ),
-            vol.Required("amount", default=1.0): NumberSelector(
-                NumberSelectorConfig(min=0, step=0.5, mode=NumberSelectorMode.BOX)
-            ),
-        }
-        if product_names:
-            schema_dict[vol.Optional("product")] = SelectSelector(
-                SelectSelectorConfig(options=product_names)
-            )
-        if cat_options:
-            schema_dict[vol.Optional("feeding_category")] = SelectSelector(
-                SelectSelectorConfig(options=cat_options)
-            )
-
-        return self.async_show_form(
-            step_id="add_preset",
-            data_schema=vol.Schema(schema_dict),
+            step_id="remove_insulin_type",
+            data_schema=vol.Schema({vol.Required("type"): vol.In(type_options)}),
         )
 
     # --- E-Mail / SMTP ---
@@ -368,48 +319,41 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
     async def async_step_manage_email_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage SMTP email settings for the daily report.
+        """Manage SMTP email settings for the daily report."""
+        from homeassistant.helpers.selector import BooleanSelector, TextSelectorConfig, TextSelectorType
 
-        SMTP is used globally for all subjects. Configure only in one subject entry.
-        The first entry with smtp_enabled=True is used for sending.
-        """
         if user_input is not None:
             new_options = dict(self.config_entry.options)
-            new_options[CONF_SMTP_ENABLED] = user_input.get(CONF_SMTP_ENABLED, False)
-            new_options[CONF_SMTP_HOST] = user_input.get(CONF_SMTP_HOST, "")
-            new_options[CONF_SMTP_PORT] = int(user_input.get(CONF_SMTP_PORT, 465))
-            new_options[CONF_SMTP_ENCRYPTION] = user_input.get(CONF_SMTP_ENCRYPTION, "tls")
-            new_options[CONF_SMTP_SENDER] = user_input.get(CONF_SMTP_SENDER, "")
-            new_options[CONF_SMTP_SENDER_NAME] = user_input.get(CONF_SMTP_SENDER_NAME, "GlucoFarmer")
-            new_options[CONF_SMTP_USERNAME] = user_input.get(CONF_SMTP_USERNAME, "")
-            new_options[CONF_SMTP_PASSWORD] = user_input.get(CONF_SMTP_PASSWORD, "")
-            new_options[CONF_SMTP_RECIPIENTS] = user_input.get(CONF_SMTP_RECIPIENTS, "")
+            new_options["smtp_enabled"] = user_input.get("smtp_enabled", False)
+            new_options["smtp_host"] = user_input.get("smtp_host", "")
+            new_options["smtp_port"] = int(user_input.get("smtp_port", 465))
+            new_options["smtp_encryption"] = user_input.get("smtp_encryption", "tls")
+            new_options["smtp_sender"] = user_input.get("smtp_sender", "")
+            new_options["smtp_sender_name"] = user_input.get("smtp_sender_name", "GlucoFarmer")
+            new_options["smtp_username"] = user_input.get("smtp_username", "")
+            new_options["smtp_password"] = user_input.get("smtp_password", "")
+            new_options["smtp_recipients"] = user_input.get("smtp_recipients", "")
             return self.async_create_entry(title="", data=new_options)
 
+        from homeassistant.helpers.selector import BooleanSelector, TextSelectorConfig, TextSelectorType
         cur = self.config_entry.options
         return self.async_show_form(
             step_id="manage_email_settings",
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_SMTP_ENABLED,
-                        default=cur.get(CONF_SMTP_ENABLED, False),
+                        "smtp_enabled", default=cur.get("smtp_enabled", False)
                     ): BooleanSelector(),
                     vol.Optional(
-                        CONF_SMTP_HOST,
-                        default=cur.get(CONF_SMTP_HOST, ""),
+                        "smtp_host", default=cur.get("smtp_host", "")
                     ): TextSelector(),
                     vol.Optional(
-                        CONF_SMTP_PORT,
-                        default=cur.get(CONF_SMTP_PORT, 465),
+                        "smtp_port", default=cur.get("smtp_port", 465)
                     ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=1, max=65535, step=1, mode=NumberSelectorMode.BOX
-                        )
+                        NumberSelectorConfig(min=1, max=65535, step=1, mode=NumberSelectorMode.BOX)
                     ),
                     vol.Optional(
-                        CONF_SMTP_ENCRYPTION,
-                        default=cur.get(CONF_SMTP_ENCRYPTION, "tls"),
+                        "smtp_encryption", default=cur.get("smtp_encryption", "tls")
                     ): SelectSelector(
                         SelectSelectorConfig(
                             options=[
@@ -419,51 +363,20 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
                         )
                     ),
                     vol.Optional(
-                        CONF_SMTP_SENDER,
-                        default=cur.get(CONF_SMTP_SENDER, ""),
+                        "smtp_sender", default=cur.get("smtp_sender", "")
                     ): TextSelector(),
                     vol.Optional(
-                        CONF_SMTP_SENDER_NAME,
-                        default=cur.get(CONF_SMTP_SENDER_NAME, "GlucoFarmer"),
+                        "smtp_sender_name", default=cur.get("smtp_sender_name", "GlucoFarmer")
                     ): TextSelector(),
                     vol.Optional(
-                        CONF_SMTP_USERNAME,
-                        default=cur.get(CONF_SMTP_USERNAME, ""),
+                        "smtp_username", default=cur.get("smtp_username", "")
                     ): TextSelector(),
                     vol.Optional(
-                        CONF_SMTP_PASSWORD,
-                        default=cur.get(CONF_SMTP_PASSWORD, ""),
-                    ): TextSelector(
-                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                    ),
+                        "smtp_password", default=cur.get("smtp_password", "")
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
                     vol.Optional(
-                        CONF_SMTP_RECIPIENTS,
-                        default=cur.get(CONF_SMTP_RECIPIENTS, ""),
+                        "smtp_recipients", default=cur.get("smtp_recipients", "")
                     ): TextSelector(),
                 }
-            ),
-        )
-
-    async def async_step_remove_preset(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Remove a preset."""
-        presets = list(self.config_entry.options.get(CONF_PRESETS, []))
-
-        if user_input is not None:
-            name_to_remove = user_input["preset"]
-            presets = [p for p in presets if p["name"] != name_to_remove]
-            new_options = dict(self.config_entry.options)
-            new_options[CONF_PRESETS] = presets
-            return self.async_create_entry(title="", data=new_options)
-
-        preset_names = {p["name"]: p["name"] for p in presets}
-        if not preset_names:
-            return self.async_abort(reason="no_presets")
-
-        return self.async_show_form(
-            step_id="remove_preset",
-            data_schema=vol.Schema(
-                {vol.Required("preset"): vol.In(preset_names)}
             ),
         )

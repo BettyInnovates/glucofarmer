@@ -3,7 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "glucofarmer"
-PLATFORMS = [Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.TEXT]
+PLATFORMS = [Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR]
 
 # Config keys
 CONF_SUBJECT_NAME = "pig_name"
@@ -11,9 +11,9 @@ CONF_GLUCOSE_SENSOR = "glucose_sensor"
 CONF_TREND_SENSOR = "trend_sensor"
 
 # Options keys
-CONF_INSULIN_PRODUCTS = "insulin_products"
-CONF_FEEDING_CATEGORIES = "feeding_categories"
-CONF_PRESETS = "presets"
+CONF_SUBJECT_WEIGHT_KG = "weight_kg"
+CONF_MEALS = "meals"
+CONF_INSULIN_TYPES = "insulin_types"
 
 # SMTP / E-Mail options (global -- nur in einer Subject-Entry konfigurieren)
 CONF_SMTP_ENABLED = "smtp_enabled"
@@ -43,36 +43,15 @@ STATUS_VERY_HIGH = "very_high"
 STATUS_CRITICAL_LOW = "critical_low"
 STATUS_NO_DATA = "no_data"
 
-# Default insulin products
-DEFAULT_INSULIN_PRODUCTS: list[dict[str, str]] = [
-    {"name": "NovoRapid", "category": "short"},
-    {"name": "Lantus", "category": "long"},
-    {"name": "Experimental-1", "category": "experimental"},
-]
+# Default meals (fallback -- user defines own meals via config flow)
+DEFAULT_MEALS: list[dict] = []
 
-# Default feeding categories
-DEFAULT_FEEDING_CATEGORIES: list[str] = [
-    "breakfast",
-    "dinner",
-    "reward",
-    "emergency_single",
-    "emergency_double",
-    "intervention",
-    "other",
-]
-
-# Insulin categories
-INSULIN_CATEGORY_SHORT = "short"
-INSULIN_CATEGORY_LONG = "long"
-INSULIN_CATEGORY_EXPERIMENTAL = "experimental"
+# Default insulin types
+DEFAULT_INSULIN_TYPES: list[str] = ["short-acting", "long-acting", "GSI"]
 
 # Event types
 EVENT_TYPE_INSULIN = "insulin"
 EVENT_TYPE_FEEDING = "feeding"
-
-# Preset types
-PRESET_TYPE_INSULIN = "insulin"
-PRESET_TYPE_FEEDING = "feeding"
 
 # Storage
 STORAGE_VERSION = 1
@@ -86,11 +65,10 @@ SERVICE_SEND_DAILY_REPORT = "send_daily_report"
 
 # Attributes
 ATTR_SUBJECT_NAME = "subject_name"
-ATTR_PRODUCT = "product"
 ATTR_AMOUNT = "amount"
 ATTR_TIMESTAMP = "timestamp"
 ATTR_NOTE = "note"
+ATTR_EVENT_ID = "event_id"
+ATTR_PRODUCT = "product"
 ATTR_CATEGORY = "category"
 ATTR_DESCRIPTION = "description"
-ATTR_EVENT_ID = "event_id"
-ATTR_PRESET_NAME = "preset_name"
