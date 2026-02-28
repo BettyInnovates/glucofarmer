@@ -451,8 +451,9 @@ async def _send_notification(
     if priority == "critical":
         # iOS: critical alert breaks through DND
         notify_data["push"] = {"sound": {"critical": 1}}
-        # Android: alarm_stream_max bypasses DND and plays at max volume
-        notify_data["channel"] = "alarm_stream_max"
+        # Android: alarm_stream channel bypasses DND, ttl=0 ensures immediate delivery
+        notify_data["channel"] = "alarm_stream"
+        notify_data["ttl"] = 0
 
     # Determine notify targets
     targets_str = (opts or {}).get(CONF_NOTIFY_TARGETS, DEFAULT_NOTIFY_TARGETS)
