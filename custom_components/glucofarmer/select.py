@@ -74,11 +74,11 @@ class GlucoFarmerFormModeSelect(SelectEntity):
         self._attr_unique_id = f"{entry.entry_id}_form_mode"
         self._attr_device_info = _device_info(entry, subject_name)
         self._attr_current_option = "—"
-        self._attr_options = ["—", "feeding", "insulin"]
+        self._attr_options = ["—", "feeding", "insulin", "list"]
 
     @property
     def options(self) -> list[str]:
-        return ["—", "feeding", "insulin"]
+        return ["—", "feeding", "insulin", "list"]
 
     async def async_select_option(self, option: str) -> None:
         self._attr_current_option = option

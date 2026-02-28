@@ -200,22 +200,6 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
             menu_options=["add_meal", "remove_meal"],
         )
 
-    def _propagate_meals_to_all_entries(self, meals: list) -> None:
-        """Copy meal catalog to all other config entries (global catalog)."""
-        for entry in self.hass.config_entries.async_entries(DOMAIN):
-            if entry.entry_id != self.config_entry.entry_id:
-                other_options = dict(entry.options)
-                other_options[CONF_MEALS] = meals
-                self.hass.config_entries.async_update_entry(entry, options=other_options)
-
-    def _propagate_insulin_types_to_all_entries(self, types: list) -> None:
-        """Copy insulin type catalog to all other config entries (global catalog)."""
-        for entry in self.hass.config_entries.async_entries(DOMAIN):
-            if entry.entry_id != self.config_entry.entry_id:
-                other_options = dict(entry.options)
-                other_options[CONF_INSULIN_TYPES] = types
-                self.hass.config_entries.async_update_entry(entry, options=other_options)
-
     async def async_step_add_meal(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -228,7 +212,6 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
             else:
                 meal["amount"] = float(user_input["value"])
             meals.append(meal)
-            self._propagate_meals_to_all_entries(meals)
             new_options = dict(self.config_entry.options)
             new_options[CONF_MEALS] = meals
             return self.async_create_entry(title="", data=new_options)
@@ -264,7 +247,6 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
         if user_input is not None:
             name_to_remove = user_input["meal"]
             meals = [m for m in meals if m["name"] != name_to_remove]
-            self._propagate_meals_to_all_entries(meals)
             new_options = dict(self.config_entry.options)
             new_options[CONF_MEALS] = meals
             return self.async_create_entry(title="", data=new_options)
@@ -300,7 +282,6 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
             new_type = user_input["name"].strip()
             if new_type and new_type not in types:
                 types.append(new_type)
-            self._propagate_insulin_types_to_all_entries(types)
             new_options = dict(self.config_entry.options)
             new_options[CONF_INSULIN_TYPES] = types
             return self.async_create_entry(title="", data=new_options)
@@ -320,7 +301,6 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             types = [t for t in types if t != user_input["type"]]
-            self._propagate_insulin_types_to_all_entries(types)
             new_options = dict(self.config_entry.options)
             new_options[CONF_INSULIN_TYPES] = types
             return self.async_create_entry(title="", data=new_options)

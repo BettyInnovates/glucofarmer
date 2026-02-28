@@ -372,8 +372,43 @@ def _build_input_view(
             {"type": "markdown", "content": f"## {subject_name}"},
         ]
 
-        # 1. Mini graph: last 3h, threshold lines only (no fill)
         glucose_entity = ents.get("glucose_value")
+        status_entity = ents.get("glucose_status", "")
+        trend_entity = ents.get("glucose_trend", "")
+        insulin_entity = ents.get("daily_insulin_total", "")
+        bes_entity = ents.get("daily_bes_total", "")
+        form_mode_entity = ents.get("form_mode")
+        meal_entity = ents.get("meal")
+        be_entity = ents.get("be_amount")
+        minutes_entity = ents.get("minutes_ago")
+        log_feeding_entity = ents.get("log_feeding")
+        insulin_type_entity = ents.get("insulin_type")
+        insulin_units_entity = ents.get("insulin_units")
+        log_insulin_entity = ents.get("log_insulin")
+        events_entity = ents.get("recent_events")
+
+        # 1. Status line (first, before graph)
+        if glucose_entity:
+            subject_cards.append({
+                "type": "markdown",
+                "content": (
+                    f"{{% set val = states('{glucose_entity}') %}}"
+                    f"{{% set status = states('{status_entity}') %}}"
+                    f"{{% set trend = states('{trend_entity}') %}}"
+                    "{% if status in ['critical_low', 'very_high'] %}"
+                    "**! Glucose: {{ val }} mg/dL !**"
+                    "{% elif status in ['very_low', 'low', 'high'] %}"
+                    "**Glucose: {{ val }} mg/dL**"
+                    "{% else %}"
+                    "Glucose: {{ val }} mg/dL"
+                    "{% endif %}"
+                    " | Trend: {{ trend }}"
+                    f" | Insulin heute: {{{{ states('{insulin_entity}') }}}} IU"
+                    f" | BE heute: {{{{ states('{bes_entity}') }}}}"
+                ),
+            })
+
+        # 2. Mini graph: last 3h, threshold lines only (no fill)
         if glucose_entity:
             subject_cards.append({
                 "type": "custom:apexcharts-card",
@@ -401,75 +436,32 @@ def _build_input_view(
                 }],
             })
 
-        # 2. Status line
-        status_entity = ents.get("glucose_status", "")
-        trend_entity = ents.get("glucose_trend", "")
-        insulin_entity = ents.get("daily_insulin_total", "")
-        bes_entity = ents.get("daily_bes_total", "")
-
-        if glucose_entity:
-            subject_cards.append({
-                "type": "markdown",
-                "content": (
-                    f"{{% set val = states('{glucose_entity}') %}}"
-                    f"{{% set status = states('{status_entity}') %}}"
-                    f"{{% set trend = states('{trend_entity}') %}}"
-                    "{% if status in ['critical_low', 'very_high'] %}"
-                    "**! Glucose: {{ val }} mg/dL !**"
-                    "{% elif status in ['very_low', 'low', 'high'] %}"
-                    "**Glucose: {{ val }} mg/dL**"
-                    "{% else %}"
-                    "Glucose: {{ val }} mg/dL"
-                    "{% endif %}"
-                    " | Trend: {{ trend }}"
-                    f" | Insulin heute: {{{{ states('{insulin_entity}') }}}} IU"
-                    f" | BE heute: {{{{ states('{bes_entity}') }}}} BE"
-                ),
-            })
-
-        # 3. Two form-toggle buttons
-        form_mode_entity = ents.get("form_mode")
+        # 3. Three action buttons: Fuetterung | Insulin | Liste
         if form_mode_entity:
+
+            def _toggle_btn(icon: str, option: str) -> dict[str, Any]:
+                return {
+                    "type": "button",
+                    "name": "",
+                    "icon": icon,
+                    "tap_action": {
+                        "action": "call-service",
+                        "service": "select.select_option",
+                        "service_data": {"entity_id": form_mode_entity, "option": option},
+                    },
+                    "show_state": False,
+                }
+
             subject_cards.append({
                 "type": "horizontal-stack",
                 "cards": [
-                    {
-                        "type": "button",
-                        "name": "Fuetterung",
-                        "icon": "mdi:food-apple",
-                        "tap_action": {
-                            "action": "call-service",
-                            "service": "select.select_option",
-                            "service_data": {
-                                "entity_id": form_mode_entity,
-                                "option": "feeding",
-                            },
-                        },
-                        "show_state": False,
-                    },
-                    {
-                        "type": "button",
-                        "name": "Insulin",
-                        "icon": "mdi:needle",
-                        "tap_action": {
-                            "action": "call-service",
-                            "service": "select.select_option",
-                            "service_data": {
-                                "entity_id": form_mode_entity,
-                                "option": "insulin",
-                            },
-                        },
-                        "show_state": False,
-                    },
+                    _toggle_btn("mdi:food-apple", "feeding"),
+                    _toggle_btn("mdi:needle", "insulin"),
+                    _toggle_btn("mdi:clipboard-list-outline", "list"),
                 ],
             })
 
         # 4. Conditional: feeding form
-        meal_entity = ents.get("meal")
-        be_entity = ents.get("be_amount")
-        minutes_entity = ents.get("minutes_ago")
-        log_feeding_entity = ents.get("log_feeding")
-
         if form_mode_entity and meal_entity and be_entity and minutes_entity:
             feeding_inner_cards: list[dict[str, Any]] = [
                 {
@@ -502,10 +494,6 @@ def _build_input_view(
             })
 
         # 5. Conditional: insulin form
-        insulin_type_entity = ents.get("insulin_type")
-        insulin_units_entity = ents.get("insulin_units")
-        log_insulin_entity = ents.get("log_insulin")
-
         if form_mode_entity and insulin_type_entity and insulin_units_entity:
             insulin_fields = [
                 {"entity": insulin_type_entity, "name": "Typ"},
@@ -539,10 +527,19 @@ def _build_input_view(
                 "card": {"type": "vertical-stack", "cards": insulin_inner_cards},
             })
 
-        # 6. Events (last 24h) -- markdown list, newest first
-        events_entity = ents.get("recent_events")
-        if events_entity:
-            subject_cards.append({
+        # 6. Conditional: events list (visible only when form_mode="list")
+        if form_mode_entity and events_entity:
+            close_btn: dict[str, Any] = {
+                "type": "button",
+                "name": "Schliessen",
+                "icon": "mdi:chevron-up",
+                "tap_action": {
+                    "action": "call-service",
+                    "service": "select.select_option",
+                    "service_data": {"entity_id": form_mode_entity, "option": "—"},
+                },
+            }
+            events_markdown: dict[str, Any] = {
                 "type": "markdown",
                 "content": (
                     "**Eintraege heute**\n\n"
@@ -555,6 +552,13 @@ def _build_input_view(
                     "_Noch keine Eintraege heute._"
                     "{% endif %}"
                 ),
+            }
+            subject_cards.append({
+                "type": "conditional",
+                "conditions": [
+                    {"condition": "state", "entity": form_mode_entity, "state": "list"},
+                ],
+                "card": {"type": "vertical-stack", "cards": [close_btn, events_markdown]},
             })
 
         cards.append({"type": "vertical-stack", "cards": subject_cards})
