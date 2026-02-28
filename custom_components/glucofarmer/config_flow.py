@@ -25,12 +25,33 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    ALARM_PRIORITY_CRITICAL,
+    ALARM_PRIORITY_NOTIFICATION,
+    ALARM_PRIORITY_OFF,
+    CONF_ALARM_CRITICAL_LOW,
+    CONF_ALARM_FALLING_QUICKLY,
+    CONF_ALARM_HIGH,
+    CONF_ALARM_LOW,
+    CONF_ALARM_NO_DATA,
+    CONF_ALARM_RISING_QUICKLY,
+    CONF_ALARM_VERY_HIGH,
+    CONF_ALARM_VERY_LOW,
     CONF_GLUCOSE_SENSOR,
     CONF_INSULIN_TYPES,
     CONF_MEALS,
+    CONF_NOTIFY_TARGETS,
     CONF_SUBJECT_NAME,
     CONF_SUBJECT_WEIGHT_KG,
     CONF_TREND_SENSOR,
+    DEFAULT_ALARM_CRITICAL_LOW,
+    DEFAULT_ALARM_FALLING_QUICKLY,
+    DEFAULT_ALARM_HIGH,
+    DEFAULT_ALARM_LOW,
+    DEFAULT_ALARM_NO_DATA,
+    DEFAULT_ALARM_RISING_QUICKLY,
+    DEFAULT_ALARM_VERY_HIGH,
+    DEFAULT_ALARM_VERY_LOW,
+    DEFAULT_NOTIFY_TARGETS,
     DEFAULT_INSULIN_TYPES,
     DEFAULT_MEALS,
     DOMAIN,
@@ -137,6 +158,7 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
                 "manage_subject_profile",
                 "manage_meals",
                 "manage_insulin_types",
+                "manage_alarm_settings",
                 "manage_email_settings",
             ],
         )
@@ -312,6 +334,75 @@ class GlucoFarmerOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="remove_insulin_type",
             data_schema=vol.Schema({vol.Required("type"): vol.In(type_options)}),
+        )
+
+    # --- Alarm settings ---
+
+    async def async_step_manage_alarm_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage alarm priorities and notification targets."""
+        if user_input is not None:
+            new_options = dict(self.config_entry.options)
+            new_options[CONF_ALARM_CRITICAL_LOW] = user_input[CONF_ALARM_CRITICAL_LOW]
+            new_options[CONF_ALARM_VERY_LOW] = user_input[CONF_ALARM_VERY_LOW]
+            new_options[CONF_ALARM_LOW] = user_input[CONF_ALARM_LOW]
+            new_options[CONF_ALARM_HIGH] = user_input[CONF_ALARM_HIGH]
+            new_options[CONF_ALARM_VERY_HIGH] = user_input[CONF_ALARM_VERY_HIGH]
+            new_options[CONF_ALARM_NO_DATA] = user_input[CONF_ALARM_NO_DATA]
+            new_options[CONF_ALARM_FALLING_QUICKLY] = user_input[CONF_ALARM_FALLING_QUICKLY]
+            new_options[CONF_ALARM_RISING_QUICKLY] = user_input[CONF_ALARM_RISING_QUICKLY]
+            new_options[CONF_NOTIFY_TARGETS] = user_input.get(CONF_NOTIFY_TARGETS, "")
+            return self.async_create_entry(title="", data=new_options)
+
+        cur = self.config_entry.options
+        priority_options = [
+            {"value": ALARM_PRIORITY_CRITICAL, "label": "Critical Alert (DND-Bypass)"},
+            {"value": ALARM_PRIORITY_NOTIFICATION, "label": "Benachrichtigung"},
+            {"value": ALARM_PRIORITY_OFF, "label": "Deaktiviert"},
+        ]
+        return self.async_show_form(
+            step_id="manage_alarm_settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_ALARM_CRITICAL_LOW,
+                        default=cur.get(CONF_ALARM_CRITICAL_LOW, DEFAULT_ALARM_CRITICAL_LOW),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_VERY_LOW,
+                        default=cur.get(CONF_ALARM_VERY_LOW, DEFAULT_ALARM_VERY_LOW),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_LOW,
+                        default=cur.get(CONF_ALARM_LOW, DEFAULT_ALARM_LOW),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_FALLING_QUICKLY,
+                        default=cur.get(CONF_ALARM_FALLING_QUICKLY, DEFAULT_ALARM_FALLING_QUICKLY),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_HIGH,
+                        default=cur.get(CONF_ALARM_HIGH, DEFAULT_ALARM_HIGH),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_VERY_HIGH,
+                        default=cur.get(CONF_ALARM_VERY_HIGH, DEFAULT_ALARM_VERY_HIGH),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_RISING_QUICKLY,
+                        default=cur.get(CONF_ALARM_RISING_QUICKLY, DEFAULT_ALARM_RISING_QUICKLY),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Required(
+                        CONF_ALARM_NO_DATA,
+                        default=cur.get(CONF_ALARM_NO_DATA, DEFAULT_ALARM_NO_DATA),
+                    ): SelectSelector(SelectSelectorConfig(options=priority_options)),
+                    vol.Optional(
+                        CONF_NOTIFY_TARGETS,
+                        default=cur.get(CONF_NOTIFY_TARGETS, DEFAULT_NOTIFY_TARGETS),
+                    ): TextSelector(),
+                }
+            ),
         )
 
     # --- E-Mail / SMTP ---

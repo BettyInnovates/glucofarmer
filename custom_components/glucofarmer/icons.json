@@ -88,9 +88,6 @@
       "very_high_threshold": {
         "default": "mdi:arrow-up-bold"
       },
-      "data_timeout": {
-        "default": "mdi:timer-alert-outline"
-      },
       "be_amount": {
         "default": "mdi:food-apple"
       },

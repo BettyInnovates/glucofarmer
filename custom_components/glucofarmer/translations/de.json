@@ -25,6 +25,7 @@
           "manage_subject_profile": "Subjekt-Profil (Gewicht, Sensor)",
           "manage_meals": "Mahlzeiten verwalten",
           "manage_insulin_types": "Insulintypen verwalten",
+          "manage_alarm_settings": "Alarm-Einstellungen",
           "manage_email_settings": "E-Mail-Einstellungen (Tagesbericht)"
         }
       },
@@ -77,6 +78,21 @@
         "title": "Insulintyp entfernen",
         "data": {
           "type": "Zu entfernender Typ"
+        }
+      },
+      "manage_alarm_settings": {
+        "title": "Alarm-Einstellungen",
+        "description": "Prioritaet pro Alarm-Typ und Benachrichtigungs-Ziele festlegen.",
+        "data": {
+          "alarm_critical_low": "Kritisch niedrig (<55)",
+          "alarm_very_low": "Sehr niedrig (55-100)",
+          "alarm_low": "Niedrig (100-200)",
+          "alarm_falling_quickly": "Faellt schnell (Trend)",
+          "alarm_high": "Hoch (300-400)",
+          "alarm_very_high": "Sehr hoch (>400)",
+          "alarm_rising_quickly": "Steigt schnell (Trend)",
+          "alarm_no_data": "Datenlücke (kein Signal)",
+          "notify_targets": "Benachrichtigungs-Ziele (kommagetrennt, z.B. mobile_app_handy)"
         }
       },
       "manage_email_settings": {
@@ -188,9 +204,6 @@
       },
       "very_high_threshold": {
         "name": "Schwellwert Sehr hoch"
-      },
-      "data_timeout": {
-        "name": "Daten-Timeout"
       },
       "be_amount": {
         "name": "BE-Menge"

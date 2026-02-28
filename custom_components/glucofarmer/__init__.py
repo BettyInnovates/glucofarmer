@@ -25,6 +25,8 @@ from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.history import state_changes_during_period
 
 from .const import (
+    ALARM_PRIORITY_CRITICAL,
+    ALARM_PRIORITY_OFF,
     ATTR_AMOUNT,
     ATTR_CATEGORY,
     ATTR_DESCRIPTION,
@@ -33,7 +35,16 @@ from .const import (
     ATTR_SUBJECT_NAME,
     ATTR_PRODUCT,
     ATTR_TIMESTAMP,
+    CONF_ALARM_CRITICAL_LOW,
+    CONF_ALARM_FALLING_QUICKLY,
+    CONF_ALARM_HIGH,
+    CONF_ALARM_LOW,
+    CONF_ALARM_NO_DATA,
+    CONF_ALARM_RISING_QUICKLY,
+    CONF_ALARM_VERY_HIGH,
+    CONF_ALARM_VERY_LOW,
     CONF_GLUCOSE_SENSOR,
+    CONF_NOTIFY_TARGETS,
     CONF_SMTP_ENABLED,
     CONF_SMTP_ENCRYPTION,
     CONF_SMTP_HOST,
@@ -44,9 +55,18 @@ from .const import (
     CONF_SMTP_SENDER_NAME,
     CONF_SMTP_USERNAME,
     CONF_SUBJECT_NAME,
+    DEFAULT_ALARM_CRITICAL_LOW,
+    DEFAULT_ALARM_FALLING_QUICKLY,
+    DEFAULT_ALARM_HIGH,
+    DEFAULT_ALARM_LOW,
+    DEFAULT_ALARM_NO_DATA,
+    DEFAULT_ALARM_RISING_QUICKLY,
+    DEFAULT_ALARM_VERY_HIGH,
+    DEFAULT_ALARM_VERY_LOW,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_LOW_THRESHOLD,
+    DEFAULT_NOTIFY_TARGETS,
     DEFAULT_VERY_HIGH_THRESHOLD,
     DOMAIN,
     EVENT_TYPE_FEEDING,
@@ -62,6 +82,7 @@ from .const import (
     STATUS_NO_DATA,
     STATUS_NORMAL,
     STATUS_VERY_HIGH,
+    STATUS_VERY_LOW,
 )
 from .coordinator import GlucoFarmerConfigEntry, GlucoFarmerCoordinator
 from .dashboard import async_update_dashboard
@@ -152,6 +173,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: GlucoFarmerConfigEntry) 
         "critical_low_notified": False,
         "high_notified": False,
         "no_data_notified": False,
+        "falling_quickly_notified": False,
+        "rising_quickly_notified": False,
     })
     _high_glucose_since.setdefault(subject_name, None)
 
@@ -300,28 +323,35 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
     if state is None:
         return
 
+    opts = coordinator.config_entry.options
     now = datetime.now()
 
-    # Critical low - immediate, breaks through DND
-    if status == STATUS_CRITICAL_LOW and not state["critical_low_notified"]:
+    def _fire(title: str, message: str, conf_key: str, default_priority: str) -> None:
+        """Send alarm if not configured as off. Maps config priority to internal priority."""
+        configured = opts.get(conf_key, default_priority)
+        if configured == ALARM_PRIORITY_OFF:
+            return
+        internal = "critical" if configured == ALARM_PRIORITY_CRITICAL else "high"
         hass.async_create_task(
-            _send_notification(
-                hass,
-                title=f"CRITICAL: {subject_name} glucose critically low!",
-                message=f"{subject_name} glucose is {glucose} mg/dL - CRITICAL LOW!",
-                priority="critical",
-            )
+            _send_notification(hass, title=title, message=message, priority=internal, opts=opts)
+        )
+
+    # Critical low
+    if status == STATUS_CRITICAL_LOW and not state["critical_low_notified"]:
+        _fire(
+            f"CRITICAL: {subject_name} Glukose kritisch niedrig!",
+            f"{subject_name}: {glucose} mg/dL — KRITISCH NIEDRIG!",
+            CONF_ALARM_CRITICAL_LOW, DEFAULT_ALARM_CRITICAL_LOW,
         )
         state["critical_low_notified"] = True
         state["low_notified"] = True
-    elif status == STATUS_LOW and not state["low_notified"]:
-        hass.async_create_task(
-            _send_notification(
-                hass,
-                title=f"Warning: {subject_name} glucose low",
-                message=f"{subject_name} glucose is {glucose} mg/dL - below threshold",
-                priority="high",
-            )
+    elif status in (STATUS_VERY_LOW, STATUS_LOW) and not state["low_notified"]:
+        conf_key = CONF_ALARM_VERY_LOW if status == STATUS_VERY_LOW else CONF_ALARM_LOW
+        default = DEFAULT_ALARM_VERY_LOW if status == STATUS_VERY_LOW else DEFAULT_ALARM_LOW
+        _fire(
+            f"Warnung: {subject_name} Glukose niedrig",
+            f"{subject_name}: {glucose} mg/dL — unter Zielbereich",
+            conf_key, default,
         )
         state["low_notified"] = True
     elif status in (STATUS_HIGH, STATUS_VERY_HIGH):
@@ -332,45 +362,62 @@ def _check_alarms(hass: HomeAssistant, coordinator: GlucoFarmerCoordinator) -> N
             not state["high_notified"]
             and (now - _high_glucose_since[subject_name]) >= HIGH_GLUCOSE_DELAY
         ):
-            severity = "very high" if status == STATUS_VERY_HIGH else "high"
-            priority = "critical" if status == STATUS_VERY_HIGH else "high"
-            hass.async_create_task(
-                _send_notification(
-                    hass,
-                    title=f"Warning: {subject_name} glucose {severity}",
-                    message=f"{subject_name} glucose is {glucose} mg/dL - {severity}!",
-                    priority=priority,
-                )
+            conf_key = CONF_ALARM_VERY_HIGH if status == STATUS_VERY_HIGH else CONF_ALARM_HIGH
+            default = DEFAULT_ALARM_VERY_HIGH if status == STATUS_VERY_HIGH else DEFAULT_ALARM_HIGH
+            label = "sehr hoch" if status == STATUS_VERY_HIGH else "hoch"
+            _fire(
+                f"Warnung: {subject_name} Glukose {label}",
+                f"{subject_name}: {glucose} mg/dL — {label}!",
+                conf_key, default,
             )
             state["high_notified"] = True
     elif status == STATUS_NO_DATA and not state["no_data_notified"]:
         age = coordinator.data.reading_age_minutes
-        age_text = f"{round(age)} min" if age is not None else "unknown duration"
-        hass.async_create_task(
-            _send_notification(
-                hass,
-                title=f"Data gap: {subject_name}",
-                message=f"No glucose reading from {subject_name} for {age_text}",
-                priority="default",
-            )
+        age_text = f"{round(age)} min" if age is not None else "unbekannte Dauer"
+        _fire(
+            f"Datenlücke: {subject_name}",
+            f"Kein Glukose-Signal von {subject_name} seit {age_text}",
+            CONF_ALARM_NO_DATA, DEFAULT_ALARM_NO_DATA,
         )
         state["no_data_notified"] = True
+
+    # Trend alarms
+    trend = coordinator.data.glucose_trend
+    if trend == "falling_quickly" and not state["falling_quickly_notified"]:
+        _fire(
+            f"CRITICAL: {subject_name} Glukose fällt schnell!",
+            f"{subject_name}: {glucose} mg/dL und fällt stark",
+            CONF_ALARM_FALLING_QUICKLY, DEFAULT_ALARM_FALLING_QUICKLY,
+        )
+        state["falling_quickly_notified"] = True
+    elif trend != "falling_quickly":
+        state["falling_quickly_notified"] = False
+
+    if trend == "rising_quickly" and not state["rising_quickly_notified"]:
+        _fire(
+            f"Warnung: {subject_name} Glukose steigt schnell",
+            f"{subject_name}: {glucose} mg/dL und steigt stark",
+            CONF_ALARM_RISING_QUICKLY, DEFAULT_ALARM_RISING_QUICKLY,
+        )
+        state["rising_quickly_notified"] = True
+    elif trend != "rising_quickly":
+        state["rising_quickly_notified"] = False
+
+    # Reset no_data flag as soon as signal returns (regardless of glucose level)
+    if status != STATUS_NO_DATA:
+        state["no_data_notified"] = False
 
     # Reset flags when status returns to normal
     if status == STATUS_NORMAL:
         if state["low_notified"] or state["critical_low_notified"]:
-            hass.async_create_task(
-                _send_notification(
-                    hass,
-                    title=f"{subject_name} glucose back to normal",
-                    message=f"{subject_name} glucose is {glucose} mg/dL - back in range",
-                    priority="low",
-                )
+            _fire(
+                f"{subject_name} Glukose wieder im Bereich",
+                f"{subject_name}: {glucose} mg/dL — zurück im Zielbereich",
+                CONF_ALARM_LOW, DEFAULT_ALARM_LOW,
             )
         state["low_notified"] = False
         state["critical_low_notified"] = False
         state["high_notified"] = False
-        state["no_data_notified"] = False
         _high_glucose_since[subject_name] = None
 
 
@@ -379,8 +426,14 @@ async def _send_notification(
     title: str,
     message: str,
     priority: str = "default",
+    opts: dict | None = None,
 ) -> None:
-    """Send a notification via persistent notification and notify service."""
+    """Send a notification via persistent notification and configured notify targets.
+
+    priority: "critical" (iOS DND-bypass + Android high) or "high" (Android high only).
+    opts: config entry options dict, used to read CONF_NOTIFY_TARGETS.
+          Falls back to notify.notify (broadcast) if no targets configured.
+    """
     # Always create a persistent notification
     await hass.services.async_call(
         "persistent_notification",
@@ -399,19 +452,29 @@ async def _send_notification(
         # iOS: critical alert breaks through DND
         notify_data["push"] = {"sound": {"critical": 1}}
 
-    # Try to send via notify service if available
-    try:
-        await hass.services.async_call(
-            "notify",
-            "notify",
-            {
-                "title": title,
-                "message": message,
-                "data": notify_data,
-            },
-        )
-    except Exception:
-        _LOGGER.debug("Notify service not available, using persistent notification only")
+    # Determine notify targets
+    targets_str = (opts or {}).get(CONF_NOTIFY_TARGETS, DEFAULT_NOTIFY_TARGETS)
+    targets = [t.strip() for t in targets_str.split(",") if t.strip()] if targets_str else []
+
+    if not targets:
+        # No targets configured: broadcast via notify.notify
+        targets = ["notify"]
+
+    for target in targets:
+        # target is either "notify" (broadcast) or a mobile_app_* service name
+        service = "notify" if target == "notify" else target
+        try:
+            await hass.services.async_call(
+                "notify",
+                service,
+                {
+                    "title": title,
+                    "message": message,
+                    "data": notify_data,
+                },
+            )
+        except Exception:
+            _LOGGER.debug("Notify service 'notify.%s' not available", service)
 
 
 def _get_smtp_config(hass: HomeAssistant) -> dict | None:

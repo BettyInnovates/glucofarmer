@@ -15,7 +15,6 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .const import (
     CONF_SUBJECT_NAME,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
-    DEFAULT_DATA_TIMEOUT,
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_LOW_THRESHOLD,
     DEFAULT_VERY_HIGH_THRESHOLD,
@@ -57,10 +56,6 @@ def _set_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
 def _set_very_high(coordinator: GlucoFarmerCoordinator, value: float) -> None:
     coordinator.very_high_threshold = value
     coordinator._write_one_threshold_to_shared("very_high", value)
-
-
-def _set_data_timeout(coordinator: GlucoFarmerCoordinator, value: float) -> None:
-    coordinator.data_timeout = int(value)
 
 
 NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
@@ -123,18 +118,6 @@ NUMBER_DESCRIPTIONS: tuple[GlucoFarmerNumberEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         default_value=DEFAULT_VERY_HIGH_THRESHOLD,
         setter_fn=_set_very_high,
-    ),
-    GlucoFarmerNumberEntityDescription(
-        key="data_timeout",
-        translation_key="data_timeout",
-        native_unit_of_measurement=UnitOfTime.MINUTES,
-        native_min_value=5,
-        native_max_value=120,
-        native_step=1,
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-        default_value=DEFAULT_DATA_TIMEOUT,
-        setter_fn=_set_data_timeout,
     ),
 )
 

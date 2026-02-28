@@ -25,6 +25,7 @@
           "manage_subject_profile": "Subject profile (weight, sensor)",
           "manage_meals": "Manage meals",
           "manage_insulin_types": "Manage insulin types",
+          "manage_alarm_settings": "Alarm settings",
           "manage_email_settings": "Email settings (daily report)"
         }
       },
@@ -77,6 +78,21 @@
         "title": "Remove insulin type",
         "data": {
           "type": "Type to remove"
+        }
+      },
+      "manage_alarm_settings": {
+        "title": "Alarm settings",
+        "description": "Set priority per alarm type and notification targets.",
+        "data": {
+          "alarm_critical_low": "Critically low (<55)",
+          "alarm_very_low": "Very low (55-100)",
+          "alarm_low": "Low (100-200)",
+          "alarm_falling_quickly": "Falling quickly (trend)",
+          "alarm_high": "High (300-400)",
+          "alarm_very_high": "Very high (>400)",
+          "alarm_rising_quickly": "Rising quickly (trend)",
+          "alarm_no_data": "Data gap (no signal)",
+          "notify_targets": "Notification targets (comma-separated, e.g. mobile_app_myphone)"
         }
       },
       "manage_email_settings": {
@@ -188,9 +204,6 @@
       },
       "very_high_threshold": {
         "name": "Very high threshold"
-      },
-      "data_timeout": {
-        "name": "Data timeout"
       },
       "be_amount": {
         "name": "BE amount"

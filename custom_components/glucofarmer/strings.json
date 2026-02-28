@@ -189,9 +189,6 @@
       "very_high_threshold": {
         "name": "Very high threshold"
       },
-      "data_timeout": {
-        "name": "Data timeout"
-      },
       "be_amount": {
         "name": "BE amount"
       },

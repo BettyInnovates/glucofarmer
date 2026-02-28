@@ -731,7 +731,6 @@ def _build_settings_view(
             ("low_threshold", "Niedrig-Grenze (mg/dL)"),
             ("high_threshold", "Hoch-Grenze (mg/dL)"),
             ("very_high_threshold", "Sehr hoch (mg/dL)"),
-            ("data_timeout", "Daten-Timeout (Minuten)"),
         ]:
             if key in ents:
                 threshold_entities.append({"entity": ents[key], "name": label})

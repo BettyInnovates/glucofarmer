@@ -23,7 +23,6 @@ from .const import (
     CONF_SUBJECT_WEIGHT_KG,
     CONF_TREND_SENSOR,
     DEFAULT_CRITICAL_LOW_THRESHOLD,
-    DEFAULT_DATA_TIMEOUT,
     DEFAULT_HIGH_THRESHOLD,
     DEFAULT_INSULIN_TYPES,
     DEFAULT_LOW_THRESHOLD,
@@ -127,7 +126,6 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         self.low_threshold: float = DEFAULT_LOW_THRESHOLD
         self.high_threshold: float = DEFAULT_HIGH_THRESHOLD
         self.very_high_threshold: float = DEFAULT_VERY_HIGH_THRESHOLD
-        self.data_timeout: int = DEFAULT_DATA_TIMEOUT
         self._threshold_store: Store | None = None
         self._write_thresholds_to_shared()
 
@@ -389,7 +387,6 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
                 self.low_threshold = data.get("low", self.low_threshold)
                 self.high_threshold = data.get("high", self.high_threshold)
                 self.very_high_threshold = data.get("very_high", self.very_high_threshold)
-                self.data_timeout = int(data.get("data_timeout", self.data_timeout))
         except Exception:
             _LOGGER.exception("Failed to load thresholds from storage, using defaults")
         finally:
@@ -405,7 +402,6 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
             "low": self.low_threshold,
             "high": self.high_threshold,
             "very_high": self.very_high_threshold,
-            "data_timeout": self.data_timeout,
         })
 
     def schedule_dashboard_refresh(self) -> None:
