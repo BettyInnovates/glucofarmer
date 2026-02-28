@@ -243,8 +243,8 @@ class GlucoFarmerCoordinator(DataUpdateCoordinator[GlucoFarmerData]):
         daily_insulin = self._compute_daily_insulin()
         daily_bes = self._compute_daily_bes()
 
-        # Recent events for display (rolling 24h -- avoids M1 midnight disappearance bug)
-        today_events = self.store.get_events_since(self.subject_name, hours=24)
+        # Recent events for display (today from midnight)
+        today_events = self.store.get_today_events(self.subject_name)
 
         return GlucoFarmerData(
             glucose_value=glucose_value,

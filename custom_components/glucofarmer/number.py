@@ -274,7 +274,7 @@ class GlucoFarmerMinutesAgoNumber(NumberEntity):
     _attr_translation_key = "minutes_ago"
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
     _attr_native_min_value = 0
-    _attr_native_max_value = 480
+    _attr_native_max_value = 60
     _attr_native_step = 1
     _attr_mode = NumberMode.SLIDER
     _attr_native_value = 0

@@ -380,7 +380,7 @@ def _build_input_view(
                 "header": {"show": False},
                 "graph_span": "3h",
                 "apex_config": {
-                    "chart": {"height": 150, "toolbar": {"show": False}},
+                    "chart": {"height": 300, "toolbar": {"show": False}},
                     "legend": {"show": False},
                     "yaxis": {
                         "min": 0,
@@ -435,7 +435,8 @@ def _build_input_view(
                 "cards": [
                     {
                         "type": "button",
-                        "name": "🍎 Fuetterung",
+                        "name": "Fuetterung",
+                        "icon": "mdi:food-apple",
                         "tap_action": {
                             "action": "call-service",
                             "service": "select.select_option",
@@ -448,7 +449,8 @@ def _build_input_view(
                     },
                     {
                         "type": "button",
-                        "name": "💉 Insulin",
+                        "name": "Insulin",
+                        "icon": "mdi:needle",
                         "tap_action": {
                             "action": "call-service",
                             "service": "select.select_option",
@@ -469,26 +471,34 @@ def _build_input_view(
         log_feeding_entity = ents.get("log_feeding")
 
         if form_mode_entity and meal_entity and be_entity and minutes_entity:
-            feeding_form_entities = []
-            feeding_form_entities.append({"entity": meal_entity, "name": "Mahlzeit"})
-            feeding_form_entities.append({"entity": be_entity, "name": "BE"})
-            feeding_form_entities.append({"entity": minutes_entity, "name": "Vor ___ Minuten"})
+            feeding_inner_cards: list[dict[str, Any]] = [
+                {
+                    "type": "entities",
+                    "title": "Fuetterung",
+                    "entities": [
+                        {"entity": meal_entity, "name": "Mahlzeit"},
+                        {"entity": be_entity, "name": "BE"},
+                        {"entity": minutes_entity, "name": "Vor ___ Minuten"},
+                    ],
+                },
+            ]
             if log_feeding_entity:
-                feeding_form_entities.append({
-                    "entity": log_feeding_entity,
+                feeding_inner_cards.append({
+                    "type": "button",
                     "name": "Speichern",
-                    "icon": "mdi:check",
+                    "icon": "mdi:content-save",
+                    "tap_action": {
+                        "action": "call-service",
+                        "service": "button.press",
+                        "service_data": {"entity_id": log_feeding_entity},
+                    },
                 })
             subject_cards.append({
                 "type": "conditional",
                 "conditions": [
                     {"condition": "state", "entity": form_mode_entity, "state": "feeding"},
                 ],
-                "card": {
-                    "type": "entities",
-                    "title": "Fuetterung",
-                    "entities": feeding_form_entities,
-                },
+                "card": {"type": "vertical-stack", "cards": feeding_inner_cards},
             })
 
         # 5. Conditional: insulin form
@@ -497,27 +507,36 @@ def _build_input_view(
         log_insulin_entity = ents.get("log_insulin")
 
         if form_mode_entity and insulin_type_entity and insulin_units_entity:
-            insulin_form_entities = []
-            insulin_form_entities.append({"entity": insulin_type_entity, "name": "Typ"})
-            insulin_form_entities.append({"entity": insulin_units_entity, "name": "IU"})
+            insulin_fields = [
+                {"entity": insulin_type_entity, "name": "Typ"},
+                {"entity": insulin_units_entity, "name": "IU"},
+            ]
             if minutes_entity:
-                insulin_form_entities.append({"entity": minutes_entity, "name": "Vor ___ Minuten"})
+                insulin_fields.append({"entity": minutes_entity, "name": "Vor ___ Minuten"})
+            insulin_inner_cards: list[dict[str, Any]] = [
+                {
+                    "type": "entities",
+                    "title": "Insulin",
+                    "entities": insulin_fields,
+                },
+            ]
             if log_insulin_entity:
-                insulin_form_entities.append({
-                    "entity": log_insulin_entity,
+                insulin_inner_cards.append({
+                    "type": "button",
                     "name": "Speichern",
-                    "icon": "mdi:check",
+                    "icon": "mdi:content-save",
+                    "tap_action": {
+                        "action": "call-service",
+                        "service": "button.press",
+                        "service_data": {"entity_id": log_insulin_entity},
+                    },
                 })
             subject_cards.append({
                 "type": "conditional",
                 "conditions": [
                     {"condition": "state", "entity": form_mode_entity, "state": "insulin"},
                 ],
-                "card": {
-                    "type": "entities",
-                    "title": "Insulin",
-                    "entities": insulin_form_entities,
-                },
+                "card": {"type": "vertical-stack", "cards": insulin_inner_cards},
             })
 
         # 6. Events (last 24h) -- markdown list, newest first
@@ -526,14 +545,14 @@ def _build_input_view(
             subject_cards.append({
                 "type": "markdown",
                 "content": (
-                    "**Letzte Eintraege (24h)**\n\n"
+                    "**Eintraege heute**\n\n"
                     f"{{% set evts = state_attr('{events_entity}', 'events') or [] %}}"
                     "{% if evts | length > 0 %}"
                     "{% for e in evts %}"
                     "{{ e.label }}\n\n"
                     "{% endfor %}"
                     "{% else %}"
-                    "_Keine Eintraege in den letzten 24h._"
+                    "_Noch keine Eintraege heute._"
                     "{% endif %}"
                 ),
             })
