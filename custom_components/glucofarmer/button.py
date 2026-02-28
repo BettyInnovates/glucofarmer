@@ -90,7 +90,7 @@ class GlucoFarmerLogFeedingButton(ButtonEntity):
         if c.meal_entity is not None:
             await c.meal_entity.async_select_option("Any")
         if c.form_mode_entity is not None:
-            await c.form_mode_entity.async_select_option("—")
+            await c.form_mode_entity.async_select_option("list")
 
         await c.async_request_refresh()
 
@@ -141,6 +141,6 @@ class GlucoFarmerLogInsulinButton(ButtonEntity):
         if c.minutes_ago_entity is not None:
             c.minutes_ago_entity.reset()
         if c.form_mode_entity is not None:
-            await c.form_mode_entity.async_select_option("—")
+            await c.form_mode_entity.async_select_option("list")
 
         await c.async_request_refresh()
